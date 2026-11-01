@@ -1,0 +1,763 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="The Vaghela family tree, descending from Sabhabhai.">
+<title>Vaghela Family Tree</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rozha+One&family=Mukta+Vaani:wght@400;500;600&display=swap">
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0}
+[hidden]{display:none!important}
+/* Layout: slim header (title, search, branch chips) over a full-bleed pan/zoom canvas; person details slide in as a sheet. */
+:root{
+  --bg:#edf0f6; --surface:#fbfcfe; --ink:#1a2240; --muted:#5b6585; --line:#a3acc8;
+  --accent:#28398a; --accent-soft:#dfe4f6; --check:#ffe14d; --check-ink:#3a2f00; --hit:#e0457b; --added:#1f8a5b; --fem:#b8307f;
+  --font-display:'Rozha One', Georgia, 'Times New Roman', serif;
+  --font-body:'Mukta Vaani', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#0e1322; --surface:#161d33; --ink:#e5e8f4; --muted:#9aa3c3; --line:#46507a;
+  --accent:#9aabff; --accent-soft:#232c4d; --check:#ffd93a; --check-ink:#2a2200; --hit:#ff7aa6; --added:#4fd29a; --fem:#f08fcf; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#0e1322; --surface:#161d33; --ink:#e5e8f4; --muted:#9aa3c3; --line:#46507a;
+  --accent:#9aabff; --accent-soft:#232c4d; --check:#ffd93a; --check-ink:#2a2200; --hit:#ff7aa6; --added:#4fd29a; --fem:#f08fcf; color-scheme:dark }
+
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:15px;display:flex;flex-direction:column;overflow:hidden}
+header{background:var(--surface);border-bottom:1px solid var(--line);padding-block:12px 10px;padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));display:flex;flex-direction:column;gap:10px;z-index:3}
+.toprow{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 16px}
+h1{font-family:var(--font-display);font-weight:400;font-size:1.55rem;line-height:1.1;margin:0;text-wrap:balance}
+.sub{color:var(--muted);font-size:.85rem}
+.tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.search{position:relative;flex:1 1 220px;min-width:0}
+.search input{width:100%;box-sizing:border-box;font:inherit;padding:8px 12px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+.search input:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+#results{position:absolute;left:0;right:0;top:calc(100% + 4px);background:var(--surface);border:1px solid var(--line);border-radius:8px;max-height:280px;overflow:auto;z-index:20;margin:0;padding:4px;list-style:none;box-shadow:0 8px 24px rgb(0 0 0 / .15)}
+#results li button{all:unset;display:block;width:100%;box-sizing:border-box;padding:7px 10px;border-radius:6px;cursor:pointer}
+#results li button:hover,#results li button:focus-visible{background:var(--accent-soft)}
+#results small{display:block;color:var(--muted);font-size:.78rem}
+.btn{font:inherit;font-size:.88rem;font-weight:500;padding:8px 12px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:var(--accent)}
+.btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btn.check{background:var(--check);color:var(--check-ink);border-color:transparent}
+.chips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin-inline:-4px;padding:2px 4px}
+.chips::-webkit-scrollbar{display:none}
+.chip{font:inherit;font-size:.84rem;padding:5px 11px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--ink);cursor:pointer;white-space:nowrap}
+.chip small{color:var(--muted);margin-left:4px;font-size:.75rem}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--surface)}
+.chip[aria-pressed="true"] small{color:inherit;opacity:.75}
+.chip:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.crumbs{display:flex;flex-wrap:wrap;gap:2px 4px;font-size:.8rem;color:var(--muted);min-height:1em}
+.crumbs button{all:unset;cursor:pointer;color:var(--accent);text-decoration:underline;text-underline-offset:2px}
+.crumbs button:focus-visible{outline:2px solid var(--accent)}
+
+main{position:relative;flex:1;min-height:0}
+svg#tree{width:100%;height:100%;display:block;touch-action:none;cursor:grab}
+svg#tree:active{cursor:grabbing}
+.link{fill:none;stroke:var(--line);stroke-width:1.4}
+.node{cursor:pointer}
+.node{--g:var(--accent)}
+.node.female{--g:var(--fem)}
+.node .dotc{fill:var(--g);stroke:var(--surface);stroke-width:2}
+.node.none .dotc{fill:var(--surface);stroke:var(--g);stroke-width:1.6}
+.node.folded .dotc{fill:var(--surface);stroke:var(--g);stroke-width:3}
+.node text{fill:var(--ink);font-family:var(--font-body);font-size:14px;font-weight:500}
+.node .spouse{fill:var(--muted);font-weight:400;font-size:12.5px}
+.node .count{fill:var(--accent);font-size:11px;font-weight:600}
+.node.root text.label{font-family:var(--font-display);font-size:19px;font-weight:400}
+.node .mark{fill:var(--check)}
+.node.check text.label .nm{fill:var(--check-ink)}
+.node.hit .halo{stroke:var(--hit);stroke-width:2.5;fill:none}
+.node.sel .dotc{r:8}
+.node.sel .halo{stroke:var(--accent);stroke-width:2;fill:none}
+.halo{fill:none;stroke:none}
+
+.legend{position:absolute;left:max(12px, env(safe-area-inset-left, 0px));bottom:calc(12px + env(safe-area-inset-bottom, 0px));display:flex;flex-direction:column;gap:4px;font-size:.76rem;color:var(--muted);background:color-mix(in srgb, var(--surface) 88%, transparent);padding:8px 10px;border-radius:8px;border:1px solid var(--line);pointer-events:none}
+.legend span{display:flex;align-items:center;gap:7px}
+.sw{width:14px;height:10px;border-radius:2px;background:var(--check)}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--accent)}
+.dot.o{background:transparent;border:1.6px solid var(--accent);box-sizing:border-box}
+.dot.f{background:transparent;border:3px solid var(--accent);box-sizing:border-box;width:11px;height:11px}
+.zoom{position:absolute;right:max(12px, env(safe-area-inset-right, 0px));bottom:calc(12px + env(safe-area-inset-bottom, 0px));display:flex;flex-direction:column;gap:6px}
+.zoom .btn{width:42px;height:42px;padding:0;font-size:1.1rem;display:grid;place-items:center}
+
+#sheet{position:absolute;z-index:5;background:var(--surface);border:1px solid var(--line);box-shadow:0 12px 40px rgb(0 0 0 / .18);
+  left:max(10px, env(safe-area-inset-left, 0px));right:max(10px, env(safe-area-inset-right, 0px));bottom:calc(10px + env(safe-area-inset-bottom, 0px));
+  border-radius:14px;padding:16px 18px;max-height:62%;overflow:auto;display:flex;flex-direction:column;gap:10px}
+@media (min-width:760px){ #sheet{left:auto;top:12px;bottom:auto;width:340px;max-height:calc(100% - 24px)} }
+#sheet .x{position:absolute;top:10px;right:10px;width:34px;height:34px;padding:0}
+.eyebrow{margin:0;font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+#sName{font-family:var(--font-display);font-weight:400;font-size:1.7rem;margin:0;line-height:1.1;padding-right:36px}
+#sSpouse{margin:-4px 0 0;color:var(--muted)}
+.checknote{margin:0;background:var(--check);color:var(--check-ink);padding:8px 10px;border-radius:8px;font-size:.88rem}
+.note{margin:0;font-size:.92rem}
+.lineage{margin:0;padding:0;list-style:none;display:flex;flex-wrap:wrap;gap:2px 0;font-size:.85rem;color:var(--muted)}
+.lineage li+li::before{content:"→";margin:0 6px;color:var(--line)}
+.lineage button{all:unset;cursor:pointer;color:var(--accent)}
+.lineage li:last-child{color:var(--ink);font-weight:600}
+.facts{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;margin:0;font-size:.88rem}
+.facts dt{color:var(--muted)} .facts dd{margin:0;font-variant-numeric:tabular-nums}
+.kids{display:flex;flex-wrap:wrap;gap:6px}
+.kids button{font:inherit;font-size:.82rem;padding:3px 9px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--ink);cursor:pointer}
+.kids button.c{background:var(--check);color:var(--check-ink);border-color:transparent}
+.actions{display:flex;flex-wrap:wrap;gap:8px}
+.btn.primary{background:var(--accent);color:var(--surface);border-color:var(--accent)}
+.node.added:not(.hit):not(.sel) .halo{stroke:var(--added);stroke-width:1.5;stroke-dasharray:3 2}
+.node.added .nm{font-style:italic}
+.dot.a{background:transparent;border:1.5px dashed var(--added);box-sizing:border-box;width:12px;height:12px}
+.dot.fm{background:var(--fem)}
+#pform .gender{display:flex;gap:18px}
+#pform .gender label{display:flex;gap:6px;align-items:center;color:var(--ink);font-size:.92rem}
+#pform{display:flex;flex-direction:column;gap:6px;border-top:1px solid var(--line);padding-top:12px}
+#pform label{font-size:.8rem;color:var(--muted)}
+#pform input[type=text]{font:inherit;padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+#pform input:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+#pform .cb{display:flex;gap:8px;align-items:flex-start;font-size:.86rem;background:var(--check);color:var(--check-ink);padding:8px 10px;border-radius:8px}
+#pform .cb input{margin-top:3px}
+.fmsg{margin:0;font-size:.85rem;color:var(--muted)}
+.fmsg.err{color:var(--hit)}
+.btn.danger{color:var(--hit)}
+.btn:disabled{opacity:.6;cursor:default}
+.pwform{display:flex;gap:8px;flex-wrap:wrap;align-items:center;width:100%}
+.pwform input{font:inherit;padding:8px 12px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);flex:1 1 180px;min-width:0}
+.pwform input:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+#unlock[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent)}
+@media (prefers-reduced-motion: reduce){ *{transition:none!important;scroll-behavior:auto!important} }
+</style>
+</head>
+<body>
+<header>
+  <div class="toprow">
+    <h1>Vaghela Family Tree</h1>
+    <span class="sub">Transcribed from the hand-drawn chart dated 20-09-09</span>
+  </div>
+  <div class="tools">
+    <div class="search">
+      <label for="q" hidden>Find a person</label>
+      <input id="q" type="search" placeholder="Find a person…" autocomplete="off">
+      <ul id="results" hidden></ul>
+    </div>
+    <button class="btn check" id="nextCheck" type="button">Next to check</button>
+    <button class="btn" id="unlock" type="button" aria-pressed="false">Unlock editing</button>
+    <form class="pwform" id="pwForm" hidden novalidate>
+      <label for="pw" hidden>Family password</label>
+      <input type="password" id="pw" placeholder="Family password" autocomplete="current-password">
+      <button class="btn primary" type="submit" id="pwGo">Unlock</button>
+      <span class="fmsg" id="pwMsg" hidden></span>
+    </form>
+  </div>
+  <div class="chips" id="chips" role="toolbar" aria-label="Branches"></div>
+  <nav class="crumbs" id="crumbs" aria-label="Where you are"></nav>
+</header>
+
+<main>
+  <svg id="tree" aria-label="Family tree diagram"></svg>
+  <div class="legend" aria-hidden="true">
+    <span><i class="sw"></i>Unclear on the original, please check</span>
+    <span><i class="dot"></i>Male</span>
+    <span><i class="dot fm"></i>Female</span>
+    <span><i class="dot o"></i>Marked "o", no children</span>
+    <span><i class="dot f"></i>Folded branch, tap to open</span>
+    <span><i class="dot a"></i>Added since the original chart</span>
+  </div>
+  <div class="zoom">
+    <button class="btn" id="zin" type="button" aria-label="Zoom in">+</button>
+    <button class="btn" id="zout" type="button" aria-label="Zoom out">−</button>
+    <button class="btn" id="zfit" type="button" aria-label="Fit to screen">⤢</button>
+  </div>
+  <aside id="sheet" hidden aria-live="polite">
+    <button class="btn x" id="sClose" type="button" aria-label="Close">✕</button>
+    <p class="eyebrow" id="sGen"></p>
+    <h2 id="sName"></h2>
+    <p id="sSpouse" hidden></p>
+    <p class="checknote" id="sCheck" hidden></p>
+    <p class="note" id="sNote" hidden></p>
+    <ol class="lineage" id="sLine"></ol>
+    <dl class="facts" id="sFacts"></dl>
+    <div class="kids" id="sKids"></div>
+    <div class="actions">
+      <button class="btn primary" id="bFocus" type="button">Show only this branch</button>
+      <button class="btn" id="bFold" type="button">Fold branch</button>
+      <button class="btn" id="bUp" type="button" hidden>↑ Move up</button>
+      <button class="btn" id="bDown" type="button" hidden>↓ Move down</button>
+      <button class="btn" id="bAdd" type="button" hidden>+ Add a child</button>
+      <button class="btn" id="bEdit" type="button" hidden>Edit details</button>
+      <button class="btn danger" id="bDel" type="button" hidden>Remove this person</button>
+    </div>
+    <form id="pform" hidden novalidate>
+      <p class="eyebrow" id="fTitle"></p>
+      <label for="fName">Name</label>
+      <input type="text" id="fName" autocomplete="off">
+      <div class="gender" role="radiogroup" aria-label="Gender"><label for="fMale"><input type="radio" name="fGender" id="fMale" value="m" checked> Male</label><label for="fFemale"><input type="radio" name="fGender" id="fFemale" value="f"> Female</label></div>
+      <label for="fSpouse">Wife or husband (optional)</label>
+      <input type="text" id="fSpouse" autocomplete="off">
+      <label for="fNote">Note (optional)</label>
+      <input type="text" id="fNote" autocomplete="off" placeholder="e.g. lives in Leicester">
+      <label class="cb" id="fResolveWrap" for="fResolve"><input type="checkbox" id="fResolve"> This is now correct, remove the yellow flag</label>
+      <p class="fmsg" id="fMsg" hidden></p>
+      <div class="actions">
+        <button class="btn primary" type="submit" id="fSave">Save</button>
+        <button class="btn" type="button" id="fCancel">Close form</button>
+      </div>
+    </form>
+    <p class="fmsg" id="dbNote" hidden></p>
+  </aside>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script>
+/* Data format: two spaces per generation.
+   ?{reason} = unclear on the original (shown yellow)   {note} = note
+   +Name = wife   * = marked "o" (no children)   @slug = branch shortcut */
+const RAW = `
+Sabhabhai @all
+  Jethabhai * {Looked after Surapura in Lalpur}
+  Pethabhai
+    Nayabhai
+      Bhagwanjibhai
+        Dhanjibhai
+          Samjibhai *
+          Jerambhai @jerambhai
+            Vasantji
+            Bhanji
+              Nathu
+                Hirji
+                  Santilal
+                    Ramesh
+                    Nayan
+              Narshi
+                Premji
+                  Ramnik
+                    Navin
+                    Sanjay
+                    Sailesh
+                  Nanji
+                    Bipin
+            Khimji
+            Samji
+              Mavji
+                Purshottam
+                  Ranchod ?{There is an unclear word just before this name on the original}
+                    Dhirajlal
+                    Javerilal
+                    Maheshchandra
+                  Vanabhai
+            Ratanji
+              Nanji *
+              Savji *
+            Lalji
+              Bhagwanji
+                Odhavji ?{The line could come from Bhagwanji or Dayalal, please confirm the parent}
+                Tribhovan ?{Written twice (Tribhoven, then Tribhovan below it). Shown as one person, please confirm}
+                  Bipin
+                  Pradip
+              Dayalal
+              Vithal {A crossed-out name sits beside this one on the original}
+                Pragji
+                  Kantilal
+                  Mukesh ?{Hard to read, could be Mukund}
+                Mansukh {Written "Manshuk" on the original}
+                  Dilip ?{Hard to read}
+          Jivrajbhai @jivrajbhai {Appears twice on the original, joined by a line}
+            Virjibhai @virjibhai
+              Ramjibhai +Motima @ramjibhai-uk {Settled in the U.K.}
+                Govind
+                  Mansukh ?{Hard to read}
+                Hirji
+                  Keshavji
+                  Liladhar ?{Sits just below Keshavji, could be his son rather than Hirji's}
+                  Arvind
+                  Jayanti
+                    Bhavesh
+                    Vinod
+                Prabhudas
+                  Ramesh
+                    Haresh ?{First letters are unclear}
+                    Naresh
+                  Subhash
+                    Mitesh
+                  Suresh
+                    Dipesh
+                    Nikesh
+                    Bobby
+                  Vinod
+                    Kapil
+                    Rahul
+              Muljibhai +Ratanma @muljibhai {Two names on this row are crossed out on the original}
+                Hirji
+                  Kirit
+                    Matthew ?{Hard to read}
+                  Paresh
+                    Arjun
+                  Jayesh
+                    Dhillan ?{Hard to read}
+                Natvar *
+                Kishore
+                  Rakesh
+                  Dipak
+                Jagdish *
+                Morarji
+                  Kanti
+                Gordhan *
+                Dayalal {"Vinod" is written small beside this name}
+                  Narendra
+                    Prakash
+                    Priyesh ?{Hard to read}
+              Devshibhai @devshibhai
+                Naran {India}
+                  Kalyanji
+                    Hemant
+                      Vijay
+                  Santilal {Lalpur, India}
+                    Kishore
+                      Anil
+                      Rajni
+                    Amrat
+                      Vipul
+                    Bipin
+                      Priyesh ?{The name looks struck through, please confirm}
+                Arjan *
+              Damjibhai +Gomtima @damjibhai
+                Amershi
+                  Mohan
+                    Suresh *
+                    Prakash
+                  Vasantji
+                    Sunil
+                      Amit
+                    Bipin
+                  Madhavji
+                    Sailesh
+                      Mitul
+                    Pankaj
+                  Pravin
+                    Darshan
+                Savji
+                  Jamnadas ?{Joined to Savji by a long line, please confirm he is Savji's son}
+                    Hasmukh
+                    Chandu
+                    Jitu
+              Meghjibhai +Ottamma @meghjibhai
+                Nanji
+                  Pranlal *
+                  Pravin
+                    (Gujarati name) ?{Written in Gujarati script and hard to read}
+                  Arun
+                  Natwarlal ?{Sits between Pravin and Arun, could be a son of either rather than Nanji's}
+                    Jayesh
+                    Ketan
+                Jeram
+                  Himat
+                  Raju
+                Nathoo ?{Hard to read}
+                  Arvind
+                    Bhavesh
+                    Dipesh ?{The parent line is unclear}
+                    Mahesh ?{The parent line is unclear}
+                    Kalpesh ?{The parent line is unclear}
+                  Ashwin
+                    Diren ?{Hard to read}
+              Jadhavji +Nathima @jadhavji
+                Sunderji
+                  Santilal
+                  Jagdish
+                    Ashit ?{Hard to read}
+                Maganlal
+                  Satish
+                    Praful
+                  Vijay
+                    Ankur ?{Hard to read}
+            Ranchhodbhai *
+      Veljibhai @veljibhai
+        Hirabhai *
+        Dharamshibhai {"Dhanjibhai" is also written beneath this name}
+          Anand
+            Gordhan *
+            Mulji *
+            Khimji
+              Jaygopal
+                Hitesh
+                Dhanish {In Bhanvad}
+          Hansraj *
+          Bhanji *
+    Dhanabhai *
+  Sakabhai {Moved to Savarkundla}
+`;
+
+function parse(raw){
+  const top = {id:'top',children:[]}, stack=[{node:top,ind:-1}], byId={};
+  let n=0;
+  raw.split('\n').forEach(line=>{
+    if(!line.trim()) return;
+    const ind = line.search(/\S/)/2; let t=line.trim(), m;
+    const node={id:'p'+(n++),children:[]};
+    if((m=t.match(/\?\{([^}]*)\}/))){node.check=m[1]; t=t.replace(m[0],'');}
+    if((m=t.match(/\{([^}]*)\}/))){node.note=m[1]; t=t.replace(m[0],'');}
+    if((m=t.match(/@(\S+)/))){node.slug=m[1]; t=t.replace(m[0],'');}
+    if((m=t.match(/\+(\S+)/))){node.spouse=m[1]; t=t.replace(m[0],'');}
+    if(/\*/.test(t)){node.none=true; t=t.replace('*','');}
+    node.name=t.trim();
+    while(stack[stack.length-1].ind>=ind) stack.pop();
+    const p=stack[stack.length-1].node;
+    p.children.push(node); node.pid = p===top?null:p.id;
+    stack.push({node,ind}); byId[node.id]=node;
+  });
+  return {root:top.children[0], byId};
+}
+let DATA, byId, all, checks, legs;
+let added = [], edits = {}, orders = {};
+/* Rebuild the tree: the transcribed chart, then saved corrections, then people added on the page. */
+function rebuild(){
+  const r = parse(RAW); DATA = r.root; byId = r.byId;
+  for(const [id,e] of Object.entries(edits)){
+    const d = byId[id]; if(!d || !e) continue;
+    if(typeof e.name==='string' && e.name.trim() && e.name.trim()!==d.name){ d.origName = d.name; d.name = e.name.trim(); }
+    if(typeof e.spouse==='string') d.spouse = e.spouse.trim() || undefined;
+    if(typeof e.note==='string') d.note = e.note.trim() || undefined;
+    if(e.resolved) d.check = undefined;
+    if(e.gender==='f' || e.gender==='m') d.gender = e.gender;
+  }
+  let pending = added.filter(a=>a && typeof a.name==='string' && a.name.trim()), progress = true;
+  while(pending.length && progress){
+    progress = false;
+    pending = pending.filter(a=>{
+      const p = byId[a.parentId]; if(!p) return true;
+      const n = {id:a.id, name:a.name.trim(), spouse:(a.spouse||'').trim()||undefined, note:(a.note||'').trim()||undefined, children:[], pid:p.id, added:true, gender:a.gender==='f'?'f':'m'};
+      p.children.push(n); byId[n.id] = n; progress = true; return false;
+    });
+  }
+  for(const [pid,o] of Object.entries(orders)){
+    const p = byId[pid]; if(!p || !o || !Array.isArray(o.ids)) continue;
+    const rank = new Map(o.ids.map((id,i)=>[id,i])), orig = p.children.slice();
+    const key = c => rank.has(c.id) ? rank.get(c.id) : 1e6 + orig.indexOf(c);
+    p.children.sort((a,b)=>key(a)-key(b));
+  }
+  all = Object.values(byId); checks = all.filter(d=>d.check); legs = all.filter(d=>d.slug);
+  if(typeof focusId!=='undefined' && !byId[focusId]) focusId = DATA.id;
+  if(typeof selId!=='undefined' && selId && !byId[selId]) selId = null;
+}
+const ancestors = id => { const a=[]; let c=byId[id]; while(c){a.unshift(c); c=c.pid?byId[c.pid]:null;} return a; };
+const descCount = d => d.children.reduce((s,c)=>s+1+descCount(c),0);
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+let focusId = 'p0', selId=null, checkIdx=-1;
+const folded = new Set();
+const hits = new Set();
+rebuild();
+
+/* ---------- SVG ---------- */
+const svg = d3.select('#tree');
+const g = svg.append('g');
+const gl = g.append('g'), gn = g.append('g');
+const zoom = d3.zoom().scaleExtent([0.04,3]).on('zoom', e=>g.attr('transform', e.transform));
+svg.call(zoom).on('dblclick.zoom', null);
+svg.on('click', e=>{ if(e.target===svg.node()) closeSheet(); });
+
+let layout = [];
+function render(){
+  const h = d3.hierarchy(byId[focusId], d => folded.has(d.id) || !d.children.length ? null : d.children);
+  d3.tree().nodeSize([30,175]).separation((a,b)=>a.parent===b.parent?1:1.3)(h);
+  layout = h.descendants();
+
+  gl.selectAll('path').data(h.links(), l=>l.target.data.id).join('path')
+    .attr('class','link').attr('d', d3.linkHorizontal().x(d=>d.y).y(d=>d.x));
+
+  const nodes = gn.selectAll('g.node').data(layout, d=>d.data.id).join(enter=>{
+    const ng = enter.append('g');
+    ng.append('circle').attr('class','halo').attr('r',11);
+    ng.append('circle').attr('class','dotc').attr('r',5.5);
+    ng.append('rect').attr('class','mark').attr('rx',3);
+    const t = ng.append('text').attr('class','label').attr('x',11).attr('dy','0.34em');
+    t.append('tspan').attr('class','nm');
+    t.append('tspan').attr('class','spouse');
+    ng.append('text').attr('class','count').attr('x',-10).attr('dy','-0.7em').attr('text-anchor','end');
+    ng.on('click',(e,d)=>{ e.stopPropagation(); select(d.data.id); });
+    return ng;
+  });
+  nodes.attr('transform',d=>`translate(${d.y},${d.x})`)
+    .attr('class',d=>['node', d.depth===0&&'root', d.data.none&&'none', d.data.check&&'check',
+      folded.has(d.data.id)&&d.data.children.length&&'folded', d.data.added&&'added', d.data.gender==='f'&&'female', hits.has(d.data.id)&&'hit', selId===d.data.id&&'sel'].filter(Boolean).join(' '));
+  nodes.select('.nm').text(d=>d.data.name);
+  nodes.select('.spouse').text(d=>d.data.spouse?`  & ${d.data.spouse}`:'');
+  nodes.select('.count').text(d=>folded.has(d.data.id)&&d.data.children.length?`+${descCount(d.data)}`:'');
+  nodes.each(function(d){
+    const r = d3.select(this).select('rect');
+    if(!d.data.check){ r.attr('width',0).attr('height',0); return; }
+    const b = d3.select(this).select('.nm').node().getBBox();
+    r.attr('x',b.x-4).attr('y',b.y-2).attr('width',b.width+8).attr('height',b.height+4);
+  });
+  drawChips(); drawCrumbs();
+}
+
+function fitTo(list, ms=650){
+  const W=svg.node().clientWidth, H=svg.node().clientHeight;
+  const xs=list.map(n=>n.x), ys=list.map(n=>n.y);
+  const x0=Math.min(...xs)-24, x1=Math.max(...xs)+24, y0=Math.min(...ys)-30, y1=Math.max(...ys)+170;
+  const k=Math.min(1.6, 0.94*Math.min(W/(y1-y0), H/(x1-x0)));
+  const t=d3.zoomIdentity.translate(W/2-k*(y0+y1)/2, H/2-k*(x0+x1)/2).scale(k);
+  svg.transition().duration(reduced?0:ms).call(zoom.transform,t);
+}
+function centerOn(id, k){
+  const n=layout.find(d=>d.data.id===id); if(!n) return;
+  const W=svg.node().clientWidth, H=svg.node().clientHeight;
+  const cur=d3.zoomTransform(svg.node()); k = k ?? Math.max(cur.k, 1.1);
+  const wide = W>=760; // keep the node clear of the details sheet
+  const cx = wide ? (W-360)/2 : W/2, cy = wide ? H/2 : H*0.28;
+  svg.transition().duration(reduced?0:600).call(zoom.transform, d3.zoomIdentity.translate(cx-k*(n.y+40), cy-k*n.x).scale(k));
+}
+
+/* ---------- branches + breadcrumbs ---------- */
+function setFocus(id, fit=true){
+  focusId=id; render(); if(fit) fitTo(layout);
+  const d=byId[id];
+  try{ history.replaceState(null,'', d.slug && d.slug!=='all' ? '#'+d.slug : location.pathname+location.search); }catch(e){}
+}
+function drawChips(){
+  const c=document.getElementById('chips'); c.innerHTML='';
+  legs.forEach(d=>{
+    const b=document.createElement('button'); b.className='chip'; b.type='button';
+    b.setAttribute('aria-pressed', String(focusId===d.id));
+    b.innerHTML = (d.slug==='all'?'Whole tree':d.name+(d.slug==='ramjibhai-uk'?' (U.K.)':'')) + `<small>${descCount(d)+1}</small>`;
+    b.onclick=()=>{ closeSheet(); setFocus(d.id); };
+    c.appendChild(b);
+  });
+}
+function drawCrumbs(){
+  const c=document.getElementById('crumbs'); c.innerHTML='';
+  if(focusId===DATA.id){ c.textContent = `${all.length} people across ${d3.max(all,d=>ancestors(d.id).length)} generations. Pinch or scroll to zoom, drag to move, tap a name for details.`; return; }
+  const a=ancestors(focusId);
+  a.forEach((d,i)=>{
+    if(i) c.append(' › ');
+    if(i===a.length-1){ const s=document.createElement('strong'); s.textContent=d.name+' branch'; c.append(s); }
+    else { const b=document.createElement('button'); b.textContent=d.name; b.onclick=()=>setFocus(d.id); c.append(b); }
+  });
+}
+
+/* ---------- details sheet ---------- */
+const $=id=>document.getElementById(id);
+function select(id){
+  selId=id; const d=byId[id], a=ancestors(id);
+  render();
+  $('sheet').hidden=false;
+  $('sGen').textContent=`Generation ${a.length} · ${d.gender==='f'?'Female':'Male'}`;
+  $('sName').textContent=d.name;
+  $('sSpouse').hidden=!d.spouse; $('sSpouse').textContent=d.spouse?`Married to ${d.spouse}`:'';
+  $('sCheck').hidden=!d.check; $('sCheck').textContent=d.check?`Please check: ${d.check}.`:'';
+  const extra=[d.note, d.origName&&`Originally written as ${d.origName} on the chart.`, d.added&&'Added since the original chart.'].filter(Boolean).join(' ');
+  $('sNote').hidden=!extra; $('sNote').textContent=extra;
+  const ol=$('sLine'); ol.innerHTML='';
+  a.forEach((p,i)=>{ const li=document.createElement('li');
+    if(i<a.length-1){ const b=document.createElement('button'); b.textContent=p.name; b.onclick=()=>goTo(p.id); li.append(b); } else li.textContent=p.name;
+    ol.append(li); });
+  const kids=d.children.length, desc=descCount(d);
+  $('sFacts').innerHTML = `<dt>Children</dt><dd>${kids || (d.none?'None (marked "o")':'None recorded')}</dd>` + (desc>kids?`<dt>Descendants</dt><dd>${desc}</dd>`:'');
+  const k=$('sKids'); k.innerHTML='';
+  d.children.forEach(c=>{ const b=document.createElement('button'); b.type='button'; b.textContent=c.name; if(c.check) b.className='c'; b.onclick=()=>goTo(c.id); k.append(b); });
+  $('bFocus').hidden = !kids || id===focusId;
+  $('bFold').hidden = !kids;
+  $('bFold').textContent = folded.has(id)?'Unfold branch':'Fold branch';
+  $('bAdd').hidden = $('bEdit').hidden = !canWrite;
+  $('bDel').hidden = !(canWrite && d.added && !kids);
+  const par = d.pid ? byId[d.pid] : null, pos = par ? par.children.indexOf(d) : -1;
+  $('bUp').hidden = $('bDown').hidden = !(canWrite && par && par.children.length>1);
+  $('bUp').disabled = pos<=0 || moving;
+  $('bDown').disabled = !par || pos>=par.children.length-1 || moving;
+  if(delArm!==id){ delArm=null; $('bDel').textContent='Remove this person'; }
+  if(formFor && formFor!==id) hideForm();
+}
+function closeSheet(){ $('sheet').hidden=true; if(selId){ selId=null; render(); } }
+$('sClose').onclick=closeSheet;
+$('bFocus').onclick=()=>{ const id=selId; folded.delete(id); setFocus(id); select(id); };
+$('bFold').onclick=()=>{ const id=selId; folded.has(id)?folded.delete(id):folded.add(id); select(id); centerOn(id); };
+
+function goTo(id){
+  if(!ancestors(id).some(a=>a.id===focusId)) focusId=DATA.id;
+  ancestors(id).slice(0,-1).forEach(a=>folded.delete(a.id));
+  select(id); centerOn(id);
+  if(focusId===DATA.id){ try{ history.replaceState(null,'',location.pathname+location.search);}catch(e){} }
+}
+
+/* ---------- search ---------- */
+const q=$('q'), res=$('results');
+q.addEventListener('input',()=>{
+  const v=q.value.trim().toLowerCase(); hits.clear(); res.innerHTML='';
+  if(!v){ res.hidden=true; render(); return; }
+  const m=all.filter(d=>d.name.toLowerCase().includes(v) || (d.spouse||'').toLowerCase().includes(v));
+  m.forEach(d=>hits.add(d.id));
+  m.slice(0,40).forEach(d=>{
+    const li=document.createElement('li'), b=document.createElement('button');
+    const path=ancestors(d.id).slice(0,-1).reverse().slice(0,3).map(p=>p.name).join(' ‹ ');
+    b.textContent=d.name; const sm=document.createElement('small'); sm.textContent=path?'child of '+path:'Founder'; b.append(sm);
+    b.onclick=()=>{ res.hidden=true; goTo(d.id); };
+    li.append(b); res.append(li);
+  });
+  if(!m.length){ res.innerHTML='<li style="padding:8px 10px;color:var(--muted)">No one by that name</li>'; }
+  res.hidden=false; render();
+});
+q.addEventListener('keydown',e=>{ if(e.key==='Enter'){ const f=res.querySelector('button'); f&&f.click(); } if(e.key==='Escape'){ q.value=''; q.dispatchEvent(new Event('input')); }});
+document.addEventListener('click',e=>{ if(!e.target.closest('.search')) res.hidden=true; });
+
+/* ---------- needs checking ---------- */
+$('nextCheck').textContent=`Next to check (${checks.length})`;
+$('nextCheck').onclick=()=>{ if(!checks.length) return; checkIdx=(checkIdx+1)%checks.length; goTo(checks[checkIdx].id);
+  $('nextCheck').textContent=`Next to check (${checkIdx+1} of ${checks.length})`; };
+
+/* ---------- adding & correcting people ---------- */
+let db=null, canWrite=false, formMode=null, formFor=null, delArm=null;
+const form=$('pform');
+function msg(t, err){ const m=$('fMsg'); m.hidden=!t; m.textContent=t||''; m.className='fmsg'+(err?' err':''); }
+function hideForm(){ form.hidden=true; formMode=formFor=null; msg(''); }
+function openForm(mode){
+  const d=byId[selId]; if(!d) return;
+  formMode=mode; formFor=selId; form.hidden=false; msg('');
+  if(mode==='add'){
+    $('fTitle').textContent=`New child of ${d.name}`;
+    $('fName').value=''; $('fSpouse').value=''; $('fNote').value='';
+    $('fResolveWrap').hidden=true; $('fSave').textContent='Add person'; $('fMale').checked=true;
+  } else {
+    $('fTitle').textContent=`Edit ${d.name}`;
+    $('fName').value=d.name; $(d.gender==='f'?'fFemale':'fMale').checked=true; $('fSpouse').value=d.spouse||''; $('fNote').value=d.note||'';
+    $('fResolveWrap').hidden=!d.check; $('fResolve').checked=false; $('fSave').textContent='Save changes';
+  }
+  $('fName').focus();
+  $('sheet').scrollTo({top:form.offsetTop-12, behavior: reduced?'auto':'smooth'});
+}
+function refresh(){
+  rebuild();
+  if(selId) select(selId); else render();
+  $('nextCheck').textContent=`Next to check (${checks.length})`;
+}
+function saveFailed(e){
+  if(e && e.code==='unauthorized'){ lockEditing(); note('The family password was not accepted. Unlock editing and try again.'); }
+  else if(e && e.code==='rejected') msg(e.message, true);
+  else msg('That did not save. Check your connection and try again.', true);
+}
+function note(t){ $('dbNote').hidden=!t; $('dbNote').textContent=t||''; }
+let moving=false;
+async function move(dir){
+  const d=byId[selId], par=d && d.pid ? byId[d.pid] : null; if(!par || moving || !db) return;
+  const ids=par.children.map(c=>c.id), i=ids.indexOf(d.id), j=i+dir; if(i<0 || j<0 || j>=ids.length) return;
+  [ids[i], ids[j]] = [ids[j], ids[i]];
+  moving=true; select(d.id);
+  try{ await db.doc('orders/'+par.id).set({ids, movedAt:new Date().toISOString()}); }
+  catch(err){ if(err && err.code==='invalid_argument') saveFailed(err); else note('That move did not save. Try again.'); }
+  finally{ moving=false; if(selId) select(selId); }
+}
+$('bUp').onclick=()=>move(-1);
+$('bDown').onclick=()=>move(1);
+$('bAdd').onclick=()=>openForm('add');
+$('bEdit').onclick=()=>openForm('edit');
+$('fCancel').onclick=hideForm;
+form.addEventListener('submit', async e=>{
+  e.preventDefault();
+  const d=byId[formFor]; if(!d || !db) return;
+  const gender=$('fFemale').checked?'f':'m', name=$('fName').value.trim(), spouse=$('fSpouse').value.trim(), nt=$('fNote').value.trim();
+  if(!name){ msg('Enter a name first.', true); $('fName').focus(); return; }
+  $('fSave').disabled=true;
+  try{
+    if(formMode==='add'){
+      folded.delete(d.id);
+      await db.collection('people').add({name, spouse, note:nt, gender, parentId:d.id, addedAt:new Date().toISOString()});
+      $('fName').value=''; $('fSpouse').value=''; $('fNote').value='';
+      msg(`Added ${name} under ${d.name}. Add another, or close the form.`); $('fName').focus();
+    } else if(d.added){
+      await db.doc('people/'+d.id).update({name, spouse, note:nt, gender});
+      hideForm();
+    } else {
+      const prev=edits[d.id]||{};
+      await db.doc('edits/'+d.id).set({name, spouse, note:nt, gender, resolved: !!prev.resolved || $('fResolve').checked, editedAt:new Date().toISOString()});
+      hideForm();
+    }
+  }catch(err){ saveFailed(err); }
+  finally{ $('fSave').disabled=false; }
+});
+$('bDel').onclick=async()=>{
+  const id=selId, d=byId[id]; if(!d || !d.added || !db) return;
+  if(delArm!==id){ delArm=id; $('bDel').textContent=`Tap again to remove ${d.name}`; return; }
+  delArm=null;
+  try{ await db.doc('people/'+id).delete(); const p=d.pid; closeSheet(); if(p && byId[p]) goTo(p); }
+  catch(err){ saveFailed(err); }
+};
+/* The site's own storage, through /api/tree. Same calls the page already makes. */
+const API='/api/tree';
+let pw=''; try{ pw=localStorage.getItem('vft-pw')||''; }catch(e){}
+async function api(payload){
+  let r, j={};
+  try{ r=await fetch(API,{method:'POST',headers:{'content-type':'application/json','x-family-password':pw},body:JSON.stringify(payload)}); j=await r.json().catch(()=>({})); }
+  catch(e){ const err=new Error('offline'); err.code='unavailable'; throw err; }
+  if(!r.ok){ const err=new Error(j.error||'That did not save.'); err.code = r.status===401?'unauthorized' : r.status===400||r.status===409?'rejected':'unavailable'; throw err; }
+  return j;
+}
+let loading=null;
+function load(){
+  if(loading) return loading;
+  loading=(async()=>{
+    try{
+      const r=await fetch(API,{cache:'no-store'}); const j=await r.json();
+      if(!r.ok) throw new Error(j.error||'load failed');
+      added=Object.entries(j.people||{}).map(([id,v])=>({id,...v})).sort((a,b)=>String(a.addedAt||'').localeCompare(String(b.addedAt||'')));
+      edits=j.edits||{}; orders=j.orders||{};
+      $('unlock').hidden=!j.editable; if(!canWrite) note('');
+      refresh();
+    }catch(e){ note('Added people could not be loaded just now. Showing the original chart.'); }
+    finally{ loading=null; }
+  })();
+  return loading;
+}
+db={
+  collection:()=>({ add: async data=>{ await api({action:'addPerson', data}); await load(); } }),
+  doc:path=>{ const [c,id]=path.split('/'); return {
+    update: async data=>{ await api({action:'updatePerson', id, data}); await load(); },
+    set: async data=>{ if(c==='edits') await api({action:'setEdit', id, data}); else await api({action:'setOrder', parentId:id, ids:data.ids}); await load(); },
+    delete: async ()=>{ await api({action:'deletePerson', id}); await load(); }
+  }; }
+};
+function setUnlocked(on){
+  canWrite=on; $('unlock').textContent=on?'Lock editing':'Unlock editing'; $('unlock').setAttribute('aria-pressed',String(on));
+  if(!on){ hideForm(); }
+  if(selId) select(selId);
+}
+function lockEditing(){ pw=''; try{ localStorage.removeItem('vft-pw'); }catch(e){} setUnlocked(false); }
+$('unlock').onclick=()=>{
+  if(canWrite){ lockEditing(); return; }
+  $('pwForm').hidden=!$('pwForm').hidden; if(!$('pwForm').hidden) $('pw').focus();
+};
+$('pwForm').addEventListener('submit', async e=>{
+  e.preventDefault();
+  const tryPw=$('pw').value; const m=$('pwMsg');
+  if(!tryPw){ m.hidden=false; m.className='fmsg err'; m.textContent='Enter the family password.'; return; }
+  $('pwGo').disabled=true; const prev=pw; pw=tryPw;
+  try{ await api({action:'check'}); try{ localStorage.setItem('vft-pw',pw); }catch(e){}
+    $('pwForm').hidden=true; $('pw').value=''; m.hidden=true; setUnlocked(true);
+    note('Editing unlocked. Tap anyone to add a child, edit details or change the order.'); }
+  catch(err){ pw=prev; m.hidden=false; m.className='fmsg err'; m.textContent = err.code==='unauthorized' ? 'That password is not right.' : 'Could not check the password. Try again.'; }
+  finally{ $('pwGo').disabled=false; }
+});
+(async()=>{
+  await load();
+  if(pw){ try{ await api({action:'check'}); setUnlocked(true); }catch(e){ if(e.code==='unauthorized') lockEditing(); } }
+  setInterval(()=>{ if(document.visibilityState==='visible' && form.hidden) load(); }, 30000);
+  document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') load(); });
+})();
+
+/* ---------- zoom buttons ---------- */
+$('zin').onclick=()=>svg.transition().duration(reduced?0:250).call(zoom.scaleBy,1.4);
+$('zout').onclick=()=>svg.transition().duration(reduced?0:250).call(zoom.scaleBy,1/1.4);
+$('zfit').onclick=()=>fitTo(layout);
+
+/* ---------- start ---------- */
+function start(){
+  const slug=location.hash.slice(1), leg=legs.find(d=>d.slug===slug);
+  focusId = leg ? leg.id : DATA.id;
+  render(); fitTo(layout,0);
+}
+(document.fonts ? document.fonts.ready : Promise.resolve()).then(start);
+addEventListener('hashchange',()=>{ const leg=legs.find(d=>d.slug===location.hash.slice(1)); if(leg && leg.id!==focusId) setFocus(leg.id); });
+let rt; addEventListener('resize',()=>{ clearTimeout(rt); rt=setTimeout(()=>fitTo(layout,0),150); });
+</script>
+</body>
+</html>

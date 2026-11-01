@@ -1,0 +1,11 @@
+{
+  "name": "vaghela-family-tree",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Interactive Vaghela family tree, descending from Sabhabhai.",
+  "type": "module",
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "@upstash/redis": "^1.34.3"
+  }
+}

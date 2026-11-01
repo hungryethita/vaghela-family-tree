@@ -1,0 +1,27 @@
+# Vaghela Family Tree
+
+An interactive family tree descending from Sabhabhai, transcribed from the hand-drawn chart dated 20-09-09.
+Anyone with the link can view, zoom and search it. Family members who know the shared password can add people,
+correct names, set gender, reorder brothers and sisters, and clear the yellow "please check" flags.
+
+## Deploy on Vercel
+
+1. **Import the repo** in Vercel (Add New → Project → pick this repo). No build settings are needed.
+2. **Add storage**: in the project, open **Storage → Create / Connect → Upstash for Redis** (free tier is fine)
+   and connect it to the project. This adds `KV_REST_API_URL` and `KV_REST_API_TOKEN` automatically.
+3. **Set the family password**: **Settings → Environment Variables → `FAMILY_PASSWORD`** = a password you'll share
+   with family members who should be able to edit.
+4. **Redeploy** (Deployments → ⋯ → Redeploy) so the new settings take effect.
+
+The first time the site loads, the additions already made on the claude.ai version (`data/seed.js`) are copied into the database.
+
+## How it's built
+
+- `index.html`: the whole page (D3 for the tree, loaded from cdnjs). The original chart lives in the `RAW` block.
+- `api/tree.js`: one serverless function. `GET` returns everything added or corrected; `POST` saves one change
+  and requires the `x-family-password` header.
+- Storage is three Redis hashes: `vft:people` (added people), `vft:edits` (corrections to chart people),
+  `vft:orders` (children order per parent).
+
+People from the original chart have ids `p0`, `p1`, … in the order they appear in `RAW`, so add new people through
+the site rather than editing `RAW`, or the ids will shift.
