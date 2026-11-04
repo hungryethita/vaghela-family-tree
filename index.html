@@ -126,6 +126,29 @@ svg#tree:active{cursor:grabbing}
 .pwform input{font:inherit;padding:8px 12px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);flex:1 1 180px;min-width:0}
 .pwform input:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 #unlock[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent)}
+#mform{display:flex;flex-direction:column;gap:6px;border-top:1px solid var(--line);padding-top:12px}
+#mform label{font-size:.8rem;color:var(--muted)}
+#mform input{font:inherit;padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+#mform input:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+#mres{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px;max-height:210px;overflow:auto}
+#mres button{all:unset;display:block;width:100%;box-sizing:border-box;padding:6px 10px;border-radius:6px;cursor:pointer}
+#mres button:hover,#mres button:focus-visible{background:var(--accent-soft)}
+#mres button.on{background:var(--accent);color:var(--surface)}
+#mres small{display:block;font-size:.76rem;opacity:.75}
+#mres .none{padding:6px 10px;color:var(--muted)}
+.photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:6px}
+.photos .ph{all:unset;cursor:pointer;aspect-ratio:1;border-radius:8px;overflow:hidden;background:var(--accent-soft);max-width:100%}
+.photos .ph:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.photos img{width:100%;height:100%;object-fit:cover;display:block}
+label.btn{display:inline-flex;align-items:center}
+.node .av{pointer-events:none}
+#lightbox{position:fixed;inset:0;z-index:50;background:rgb(8 10 20 / .9);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:calc(16px + env(safe-area-inset-top,0px)) max(16px, env(safe-area-inset-right,0px)) calc(16px + env(safe-area-inset-bottom,0px)) max(16px, env(safe-area-inset-left,0px))}
+#lightbox img{max-width:100%;max-height:calc(100% - 120px);object-fit:contain;border-radius:6px}
+#lbCap{margin:0;color:#e5e8f4;font-size:.9rem;text-align:center}
+#bin{position:absolute;z-index:6;top:12px;left:max(12px, env(safe-area-inset-left,0px));width:min(330px, calc(100% - 24px));max-height:calc(100% - 24px);overflow:auto;box-sizing:border-box;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 40px rgb(0 0 0 / .18);padding:14px;display:flex;flex-direction:column;gap:10px}
+#binList{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+#binList li{display:flex;justify-content:space-between;align-items:center;gap:10px}
+#binList small{display:block;color:var(--muted);font-size:.78rem}
 @media (prefers-reduced-motion: reduce){ *{transition:none!important;scroll-behavior:auto!important} }
 </style>
 </head>
@@ -143,6 +166,7 @@ svg#tree:active{cursor:grabbing}
     </div>
     <button class="btn check" id="nextCheck" type="button">Next to check</button>
     <button class="btn" id="unlock" type="button" aria-pressed="false">Unlock editing</button>
+    <button class="btn" id="binBtn" type="button" hidden>Removed (0)</button>
     <form class="pwform" id="pwForm" hidden novalidate>
       <label for="pw" hidden>Family password</label>
       <input type="password" id="pw" placeholder="Family password" autocomplete="current-password">
@@ -169,6 +193,11 @@ svg#tree:active{cursor:grabbing}
     <button class="btn" id="zout" type="button" aria-label="Zoom out">−</button>
     <button class="btn" id="zfit" type="button" aria-label="Fit to screen">⤢</button>
   </div>
+  <div id="bin" hidden>
+    <p class="eyebrow">Removed from the tree</p>
+    <ul id="binList"></ul>
+    <div class="actions"><button class="btn" id="binClose" type="button">Close</button></div>
+  </div>
   <aside id="sheet" hidden aria-live="polite">
     <button class="btn x" id="sClose" type="button" aria-label="Close">✕</button>
     <p class="eyebrow" id="sGen"></p>
@@ -179,6 +208,7 @@ svg#tree:active{cursor:grabbing}
     <ol class="lineage" id="sLine"></ol>
     <dl class="facts" id="sFacts"></dl>
     <div class="kids" id="sKids"></div>
+    <div class="photos" id="sPhotos" hidden></div>
     <div class="actions">
       <button class="btn primary" id="bFocus" type="button">Show only this branch</button>
       <button class="btn" id="bFold" type="button">Fold branch</button>
@@ -186,8 +216,11 @@ svg#tree:active{cursor:grabbing}
       <button class="btn" id="bDown" type="button" hidden>↓ Move down</button>
       <button class="btn" id="bAdd" type="button" hidden>+ Add a child</button>
       <button class="btn" id="bEdit" type="button" hidden>Edit details</button>
-      <button class="btn danger" id="bDel" type="button" hidden>Remove this person</button>
+      <button class="btn" id="bMove" type="button" hidden>Move to another parent</button>
+      <label class="btn" id="bPhoto" for="fPhoto" hidden>+ Add photos</label>
+      <button class="btn danger" id="bDel" type="button" hidden>Remove from tree</button>
     </div>
+    <input type="file" id="fPhoto" accept="image/*" multiple hidden>
     <form id="pform" hidden novalidate>
       <p class="eyebrow" id="fTitle"></p>
       <label for="fName">Name</label>
@@ -204,9 +237,30 @@ svg#tree:active{cursor:grabbing}
         <button class="btn" type="button" id="fCancel">Close form</button>
       </div>
     </form>
+    <form id="mform" hidden novalidate>
+      <p class="eyebrow" id="mTitle"></p>
+      <label for="mq">Find the new parent</label>
+      <input type="text" id="mq" autocomplete="off" placeholder="Type a name…">
+      <ul id="mres"></ul>
+      <p class="fmsg" id="mMsg" hidden></p>
+      <div class="actions">
+        <button class="btn primary" type="submit" id="mSave" disabled>Move</button>
+        <button class="btn" type="button" id="mCancel">Cancel</button>
+      </div>
+    </form>
     <p class="fmsg" id="dbNote" hidden></p>
   </aside>
 </main>
+<div id="lightbox" hidden role="dialog" aria-modal="true" aria-label="Photo">
+  <img id="lbImg" alt="">
+  <p id="lbCap"></p>
+  <div class="actions">
+    <button class="btn" id="lbPrev" type="button" aria-label="Previous photo">‹ Previous</button>
+    <button class="btn" id="lbNext" type="button" aria-label="Next photo">Next ›</button>
+    <button class="btn danger" id="lbDel" type="button" hidden>Delete photo</button>
+    <button class="btn" id="lbClose" type="button">Close</button>
+  </div>
+</div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 <script>
@@ -409,7 +463,8 @@ function parse(raw){
   return {root:top.children[0], byId};
 }
 let DATA, byId, all, checks, legs;
-let added = [], edits = {}, orders = {};
+let added = [], edits = {}, orders = {}, photos = {}, photosEnabled = false, removedList = [];
+function isUnder(node, anc){ for(let c=node; c; c=c.pid?byId[c.pid]:null) if(c===anc) return true; return false; }
 /* Rebuild the tree: the transcribed chart, then saved corrections, then people added on the page. */
 function rebuild(){
   const r = parse(RAW); DATA = r.root; byId = r.byId;
@@ -420,15 +475,30 @@ function rebuild(){
     if(typeof e.note==='string') d.note = e.note.trim() || undefined;
     if(e.resolved) d.check = undefined;
     if(e.gender==='f' || e.gender==='m') d.gender = e.gender;
+    if(e.removed) d.removedFlag = true;
   }
   let pending = added.filter(a=>a && typeof a.name==='string' && a.name.trim()), progress = true;
   while(pending.length && progress){
     progress = false;
     pending = pending.filter(a=>{
       const p = byId[a.parentId]; if(!p) return true;
-      const n = {id:a.id, name:a.name.trim(), spouse:(a.spouse||'').trim()||undefined, note:(a.note||'').trim()||undefined, children:[], pid:p.id, added:true, gender:a.gender==='f'?'f':'m'};
+      const n = {id:a.id, name:a.name.trim(), spouse:(a.spouse||'').trim()||undefined, note:(a.note||'').trim()||undefined, children:[], pid:p.id, added:true, gender:a.gender==='f'?'f':'m', removedFlag:!!a.removed};
       p.children.push(n); byId[n.id] = n; progress = true; return false;
     });
+  }
+  /* people from the chart moved to another parent */
+  for(const [id,e] of Object.entries(edits)){
+    const d = byId[id], np = e && e.parentId ? byId[e.parentId] : null;
+    if(!d || !np || !d.pid || np===d || np.id===d.pid || isUnder(np,d)) continue;
+    const op = byId[d.pid]; op.children = op.children.filter(c=>c!==d); np.children.push(d); d.pid = np.id;
+  }
+  /* removed people (and everyone under them) are hidden, and listed so they can be restored */
+  const flagged = Object.values(byId).filter(d=>d.removedFlag && d.pid);
+  removedList = flagged.map(d=>({id:d.id, name:d.name, parentName:byId[d.pid]?byId[d.pid].name:'', count:descCount(d)}));
+  for(const d of flagged){
+    if(!byId[d.id]) continue;
+    const p = byId[d.pid]; if(p) p.children = p.children.filter(c=>c!==d);
+    (function drop(n){ delete byId[n.id]; n.children.forEach(drop); })(d);
   }
   for(const [pid,o] of Object.entries(orders)){
     const p = byId[pid]; if(!p || !o || !Array.isArray(o.ids)) continue;
@@ -436,7 +506,12 @@ function rebuild(){
     const key = c => rank.has(c.id) ? rank.get(c.id) : 1e6 + orig.indexOf(c);
     p.children.sort((a,b)=>key(a)-key(b));
   }
+  for(const [phid,ph] of Object.entries(photos)){
+    const d = ph && byId[ph.personId]; if(!d || typeof ph.url!=='string' || !/^https:\/\//.test(ph.url)) continue;
+    (d.photos = d.photos || []).push({id:phid, url:ph.url, addedAt:ph.addedAt||''});
+  }
   all = Object.values(byId); checks = all.filter(d=>d.check); legs = all.filter(d=>d.slug);
+  all.forEach(d=>{ if(d.photos){ d.photos.sort((a,b)=>String(a.addedAt).localeCompare(String(b.addedAt))); d.photo = d.photos[0].url; } });
   if(typeof focusId!=='undefined' && !byId[focusId]) focusId = DATA.id;
   if(typeof selId!=='undefined' && selId && !byId[selId]) selId = null;
 }
@@ -452,6 +527,7 @@ rebuild();
 /* ---------- SVG ---------- */
 const svg = d3.select('#tree');
 const g = svg.append('g');
+svg.append('defs').html('<clipPath id="avclip" clipPathUnits="objectBoundingBox"><circle cx=".5" cy=".5" r=".5"></circle></clipPath>');
 const gl = g.append('g'), gn = g.append('g');
 const zoom = d3.zoom().scaleExtent([0.04,3]).on('zoom', e=>g.attr('transform', e.transform));
 svg.call(zoom).on('dblclick.zoom', null);
@@ -470,6 +546,7 @@ function render(){
     const ng = enter.append('g');
     ng.append('circle').attr('class','halo').attr('r',11);
     ng.append('circle').attr('class','dotc').attr('r',5.5);
+    ng.append('image').attr('class','av').attr('x',-11).attr('y',-11).attr('width',22).attr('height',22).attr('preserveAspectRatio','xMidYMid slice').attr('clip-path','url(#avclip)');
     ng.append('rect').attr('class','mark').attr('rx',3);
     const t = ng.append('text').attr('class','label').attr('x',11).attr('dy','0.34em');
     t.append('tspan').attr('class','nm');
@@ -482,6 +559,8 @@ function render(){
     .attr('class',d=>['node', d.depth===0&&'root', d.data.none&&'none', d.data.check&&'check',
       folded.has(d.data.id)&&d.data.children.length&&'folded', d.data.added&&'added', d.data.gender==='f'&&'female', hits.has(d.data.id)&&'hit', selId===d.data.id&&'sel'].filter(Boolean).join(' '));
   nodes.select('.nm').text(d=>d.data.name);
+  nodes.select('.av').attr('href', d=>d.data.photo||null).attr('display', d=>d.data.photo?null:'none');
+  nodes.select('text.label').attr('x', d=>d.data.photo?15:11);
   nodes.select('.spouse').text(d=>d.data.spouse?`  & ${d.data.spouse}`:'');
   nodes.select('.count').text(d=>folded.has(d.data.id)&&d.data.children.length?`+${descCount(d.data)}`:'');
   nodes.each(function(d){
@@ -561,12 +640,15 @@ function select(id){
   $('bFold').hidden = !kids;
   $('bFold').textContent = folded.has(id)?'Unfold branch':'Fold branch';
   $('bAdd').hidden = $('bEdit').hidden = !canWrite;
-  $('bDel').hidden = !(canWrite && d.added && !kids);
+  $('bDel').hidden = $('bMove').hidden = !(canWrite && d.pid);
+  $('bPhoto').hidden = !(canWrite && photosEnabled);
+  renderPhotos(d);
+  if(moveFor && moveFor!==id) hideMove();
   const par = d.pid ? byId[d.pid] : null, pos = par ? par.children.indexOf(d) : -1;
   $('bUp').hidden = $('bDown').hidden = !(canWrite && par && par.children.length>1);
   $('bUp').disabled = pos<=0 || moving;
   $('bDown').disabled = !par || pos>=par.children.length-1 || moving;
-  if(delArm!==id){ delArm=null; $('bDel').textContent='Remove this person'; }
+  if(delArm!==id){ delArm=null; $('bDel').textContent='Remove from tree'; }
   if(formFor && formFor!==id) hideForm();
 }
 function closeSheet(){ $('sheet').hidden=true; if(selId){ selId=null; render(); } }
@@ -629,6 +711,7 @@ function openForm(mode){
 function refresh(){
   rebuild();
   if(selId) select(selId); else render();
+  drawBin();
   $('nextCheck').textContent=`Next to check (${checks.length})`;
 }
 function saveFailed(e){
@@ -649,6 +732,122 @@ async function move(dir){
 }
 $('bUp').onclick=()=>move(-1);
 $('bDown').onclick=()=>move(1);
+function failNote(err){ if(err && err.code==='unauthorized') saveFailed(err); else note(err && err.code==='rejected' ? err.message : 'That did not save. Check your connection and try again.'); }
+
+/* ---------- move to another parent ---------- */
+let moveFor=null, moveTo=null;
+function hideMove(){ $('mform').hidden=true; moveFor=moveTo=null; }
+function openMove(){
+  const d=byId[selId]; if(!d) return;
+  hideForm(); moveFor=d.id; moveTo=null; $('mform').hidden=false;
+  const n=descCount(d);
+  $('mTitle').textContent = n ? `Move ${d.name} and the ${n} below them` : `Move ${d.name}`;
+  $('mq').value=''; $('mres').innerHTML=''; $('mSave').disabled=true; $('mSave').textContent='Move'; $('mMsg').hidden=true;
+  $('mq').focus(); $('sheet').scrollTo({top:$('mform').offsetTop-12, behavior: reduced?'auto':'smooth'});
+}
+$('mq').addEventListener('input',()=>{
+  const d=byId[moveFor], v=$('mq').value.trim().toLowerCase(), ul=$('mres');
+  ul.innerHTML=''; moveTo=null; $('mSave').disabled=true; $('mSave').textContent='Move';
+  if(!v || !d) return;
+  all.filter(c=>c.name.toLowerCase().includes(v) && c!==d && !isUnder(c,d) && c.id!==d.pid).slice(0,30).forEach(c=>{
+    const li=document.createElement('li'), b=document.createElement('button'); b.type='button';
+    b.textContent=c.name;
+    const sm=document.createElement('small'); sm.textContent=ancestors(c.id).slice(0,-1).reverse().slice(0,3).map(x=>x.name).join(' ‹ ')||'Founder'; b.append(sm);
+    b.onclick=()=>{ moveTo=c.id; ul.querySelectorAll('button').forEach(x=>x.classList.toggle('on', x===b)); $('mSave').disabled=false; $('mSave').textContent=`Move under ${c.name}`; };
+    li.append(b); ul.append(li);
+  });
+  if(!ul.children.length) ul.innerHTML='<li class="none">No one by that name</li>';
+});
+$('mform').addEventListener('submit', async e=>{
+  e.preventDefault();
+  const d=byId[moveFor], np=byId[moveTo]; if(!d || !np) return;
+  $('mSave').disabled=true;
+  try{ await api({action:'setParent', id:d.id, parentId:np.id}); hideMove(); folded.delete(np.id); await load(); goTo(d.id); note(`Moved ${d.name} under ${np.name}.`); }
+  catch(err){
+    $('mSave').disabled=false;
+    if(err.code==='unauthorized'){ saveFailed(err); return; }
+    const m=$('mMsg'); m.hidden=false; m.className='fmsg err'; m.textContent = err.code==='rejected' ? err.message : 'That move did not save. Try again.';
+  }
+});
+$('mCancel').onclick=hideMove;
+$('bMove').onclick=openMove;
+
+/* ---------- removed people ---------- */
+function drawBin(){
+  $('binBtn').hidden = !(canWrite && removedList.length);
+  $('binBtn').textContent = `Removed (${removedList.length})`;
+  const ul=$('binList'); ul.innerHTML='';
+  removedList.forEach(r=>{
+    const li=document.createElement('li'), s=document.createElement('span'); s.textContent=r.name;
+    const sm=document.createElement('small'); sm.textContent=[r.parentName&&`child of ${r.parentName}`, r.count&&`${r.count} below`].filter(Boolean).join(' · '); s.append(sm);
+    const b=document.createElement('button'); b.className='btn'; b.type='button'; b.textContent='Restore';
+    b.onclick=async()=>{
+      b.disabled=true;
+      try{ await api({action:'setRemoved', id:r.id, removed:false}); await load(); if(byId[r.id]){ goTo(r.id); note(`Restored ${r.name}.`); } }
+      catch(err){ b.disabled=false; b.textContent='Try again'; if(err.code==='unauthorized') saveFailed(err); }
+    };
+    li.append(s,b); ul.append(li);
+  });
+  if(!removedList.length || !canWrite) $('bin').hidden=true;
+}
+$('binBtn').onclick=()=>{ $('bin').hidden=!$('bin').hidden; };
+$('binClose').onclick=()=>{ $('bin').hidden=true; };
+
+/* ---------- photos ---------- */
+let lb={list:[], i:0, d:null}, lbArm=false;
+function renderPhotos(d){
+  const box=$('sPhotos'); box.innerHTML=''; const list=d.photos||[]; box.hidden=!list.length;
+  list.forEach((p,i)=>{
+    const b=document.createElement('button'); b.type='button'; b.className='ph'; b.setAttribute('aria-label',`Open photo ${i+1} of ${d.name}`);
+    const im=document.createElement('img'); im.src=p.url; im.alt=''; im.loading='lazy'; b.append(im);
+    b.onclick=()=>{ lb={list, i, d}; showLb(); $('lightbox').hidden=false; $('lbClose').focus(); };
+    box.append(b);
+  });
+}
+function showLb(){
+  const p=lb.list[lb.i]; if(!p){ $('lightbox').hidden=true; return; }
+  $('lbImg').src=p.url; $('lbImg').alt=`Photo of ${lb.d.name}`;
+  $('lbCap').textContent = lb.list.length>1 ? `${lb.d.name} · ${lb.i+1} of ${lb.list.length}` : lb.d.name;
+  $('lbPrev').hidden = $('lbNext').hidden = lb.list.length<2;
+  $('lbDel').hidden=!canWrite; $('lbDel').textContent='Delete photo'; lbArm=false;
+}
+$('lbPrev').onclick=()=>{ lb.i=(lb.i-1+lb.list.length)%lb.list.length; showLb(); };
+$('lbNext').onclick=()=>{ lb.i=(lb.i+1)%lb.list.length; showLb(); };
+$('lbClose').onclick=()=>{ $('lightbox').hidden=true; };
+$('lightbox').addEventListener('click',e=>{ if(e.target.id==='lightbox') $('lightbox').hidden=true; });
+document.addEventListener('keydown',e=>{
+  if($('lightbox').hidden) return;
+  if(e.key==='Escape') $('lightbox').hidden=true;
+  if(e.key==='ArrowLeft' && lb.list.length>1) $('lbPrev').click();
+  if(e.key==='ArrowRight' && lb.list.length>1) $('lbNext').click();
+});
+$('lbDel').onclick=async()=>{
+  if(!lbArm){ lbArm=true; $('lbDel').textContent='Tap again to delete'; return; }
+  const p=lb.list[lb.i]; $('lbDel').disabled=true;
+  try{ await api({action:'deletePhoto', photoId:p.id}); $('lightbox').hidden=true; await load(); }
+  catch(err){ $('lbCap').textContent='That photo did not delete. Try again.'; if(err.code==='unauthorized'){ $('lightbox').hidden=true; saveFailed(err); } }
+  finally{ $('lbDel').disabled=false; }
+};
+async function shrink(file){
+  const bmp=await createImageBitmap(file);
+  const k=Math.min(1, 1600/Math.max(bmp.width, bmp.height));
+  const c=document.createElement('canvas'); c.width=Math.round(bmp.width*k); c.height=Math.round(bmp.height*k);
+  c.getContext('2d').drawImage(bmp,0,0,c.width,c.height);
+  return c.toDataURL('image/jpeg',0.85);
+}
+$('fPhoto').addEventListener('change', async()=>{
+  const files=[...$('fPhoto').files]; $('fPhoto').value='';
+  const d=byId[selId]; if(!d || !files.length) return;
+  let done=0, failed=0, reason='';
+  for(const f of files){
+    note(`Uploading photo ${done+failed+1} of ${files.length}…`);
+    try{ await api({action:'addPhoto', personId:d.id, dataUrl:await shrink(f)}); done++; }
+    catch(err){ failed++; if(err.code==='unauthorized'){ saveFailed(err); return; } if(err.code==='rejected') reason=' '+err.message; }
+  }
+  await load();
+  note(failed ? `${done} added, ${failed} could not be uploaded.${reason || ' Try a JPEG or PNG photo.'}` : `${done} photo${done===1?'':'s'} added to ${d.name}.`);
+});
+
 $('bAdd').onclick=()=>openForm('add');
 $('bEdit').onclick=()=>openForm('edit');
 $('fCancel').onclick=hideForm;
@@ -676,18 +875,22 @@ form.addEventListener('submit', async e=>{
   finally{ $('fSave').disabled=false; }
 });
 $('bDel').onclick=async()=>{
-  const id=selId, d=byId[id]; if(!d || !d.added || !db) return;
-  if(delArm!==id){ delArm=id; $('bDel').textContent=`Tap again to remove ${d.name}`; return; }
-  delArm=null;
-  try{ await db.doc('people/'+id).delete(); const p=d.pid; closeSheet(); if(p && byId[p]) goTo(p); }
-  catch(err){ saveFailed(err); }
+  const id=selId, d=byId[id]; if(!d || !d.pid) return;
+  const n=descCount(d);
+  if(delArm!==id){ delArm=id; $('bDel').textContent = n ? `Tap again to remove ${d.name} and ${n} below` : `Tap again to remove ${d.name}`; return; }
+  delArm=null; const p=d.pid;
+  try{
+    await api({action:'setRemoved', id, removed:true});
+    closeSheet(); await load(); if(byId[p]) goTo(p);
+    note(`Removed ${d.name}. To bring them back, use “Removed” at the top.`);
+  }catch(err){ failNote(err); }
 };
 /* The site's own storage, through /api/tree. Same calls the page already makes. */
 const API='/api/tree';
 let pw=''; try{ pw=localStorage.getItem('vft-pw')||''; }catch(e){}
 async function api(payload){
   let r, j={};
-  try{ r=await fetch(API,{method:'POST',headers:{'content-type':'application/json','x-family-password':pw},body:JSON.stringify(payload)}); j=await r.json().catch(()=>({})); }
+  try{ r=await fetch(API,{method:'POST',headers:{'content-type':'application/json','x-family-password':pw},body:JSON.stringify(payload),signal:AbortSignal.timeout?AbortSignal.timeout(60000):undefined}); j=await r.json().catch(()=>({})); }
   catch(e){ const err=new Error('offline'); err.code='unavailable'; throw err; }
   if(!r.ok){ const err=new Error(j.error||'That did not save.'); err.code = r.status===401?'unauthorized' : r.status===400||r.status===409?'rejected':'unavailable'; throw err; }
   return j;
@@ -700,7 +903,7 @@ function load(){
       const r=await fetch(API,{cache:'no-store'}); const j=await r.json();
       if(!r.ok) throw new Error(j.error||'load failed');
       added=Object.entries(j.people||{}).map(([id,v])=>({id,...v})).sort((a,b)=>String(a.addedAt||'').localeCompare(String(b.addedAt||'')));
-      edits=j.edits||{}; orders=j.orders||{};
+      edits=j.edits||{}; orders=j.orders||{}; photos=j.photos||{}; photosEnabled=!!j.photosEnabled;
       $('unlock').hidden=!j.editable; if(!canWrite) note('');
       refresh();
     }catch(e){ note('Added people could not be loaded just now. Showing the original chart.'); }
@@ -718,7 +921,8 @@ db={
 };
 function setUnlocked(on){
   canWrite=on; $('unlock').textContent=on?'Lock editing':'Unlock editing'; $('unlock').setAttribute('aria-pressed',String(on));
-  if(!on){ hideForm(); }
+  if(!on){ hideForm(); hideMove(); $('lightbox').hidden=true; }
+  drawBin();
   if(selId) select(selId);
 }
 function lockEditing(){ pw=''; try{ localStorage.removeItem('vft-pw'); }catch(e){} setUnlocked(false); }

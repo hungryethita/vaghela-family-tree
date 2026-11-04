@@ -2,13 +2,16 @@
 // POST /api/tree  -> one change; needs the family password in the x-family-password header
 import { Redis } from '@upstash/redis';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { put, del } from '@vercel/blob';
 import seed from '../data/seed.js';
 
 const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
 const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
 const redis = url && token ? new Redis({ url, token }) : null;
 
-const K = { people: 'vft:people', edits: 'vft:edits', orders: 'vft:orders', seeded: 'vft:seeded' };
+const K = { people: 'vft:people', edits: 'vft:edits', orders: 'vft:orders', photos: 'vft:photos', seeded: 'vft:seeded' };
+const photosOn = () => !!process.env.BLOB_READ_WRITE_TOKEN;
+const MAX_PHOTO_BYTES = 3 * 1024 * 1024;
 const ID = /^[A-Za-z0-9_-]{1,40}$/;
 const BASE_ID = /^p\d{1,4}$/;
 
@@ -42,6 +45,15 @@ function personFields(d = {}) {
   return { name, gender: gender(d.gender), spouse: text(d.spouse, 80), note: text(d.note, 300) };
 }
 
+async function merge(key, id, patch) {
+  const cur = (await redis.hget(key, id)) || {};
+  await redis.hset(key, { [id]: { ...cur, ...patch } });
+}
+
+async function personExists(id) {
+  return BASE_ID.test(id) || (ID.test(id) && !!(await redis.hexists(K.people, id)));
+}
+
 async function readJson(req) {
   if (req.body && typeof req.body === 'object') return req.body;
   if (typeof req.body === 'string') return JSON.parse(req.body || '{}');
@@ -58,10 +70,13 @@ export default async function handler(req, res) {
   try {
     if (req.method === 'GET') {
       await ensureSeed();
-      const [people, edits, orders] = await Promise.all([
-        redis.hgetall(K.people), redis.hgetall(K.edits), redis.hgetall(K.orders),
+      const [people, edits, orders, photos] = await Promise.all([
+        redis.hgetall(K.people), redis.hgetall(K.edits), redis.hgetall(K.orders), redis.hgetall(K.photos),
       ]);
-      return res.status(200).json({ people: people || {}, edits: edits || {}, orders: orders || {}, editable: !!process.env.FAMILY_PASSWORD });
+      return res.status(200).json({
+        people: people || {}, edits: edits || {}, orders: orders || {}, photos: photos || {},
+        editable: !!process.env.FAMILY_PASSWORD, photosEnabled: photosOn(),
+      });
     }
     if (req.method !== 'POST') {
       res.setHeader('Allow', 'GET, POST');
@@ -108,7 +123,7 @@ export default async function handler(req, res) {
       const id = text(body.id, 10);
       if (!BASE_ID.test(id)) reject('Only people from the original chart can be corrected this way.');
       const d = body.data || {};
-      await redis.hset(K.edits, { [id]: { ...personFields(d), resolved: !!d.resolved, editedAt: now() } });
+      await merge(K.edits, id, { ...personFields(d), resolved: !!d.resolved, editedAt: now() });
       return res.status(200).json({ ok: true });
     }
 
@@ -117,6 +132,53 @@ export default async function handler(req, res) {
       const ids = Array.isArray(body.ids) ? body.ids.filter(x => typeof x === 'string' && ID.test(x)).slice(0, 200) : [];
       if (!ID.test(parentId) || !ids.length) reject('That move could not be saved.');
       await redis.hset(K.orders, { [parentId]: { ids, movedAt: now() } });
+      return res.status(200).json({ ok: true });
+    }
+
+    if (action === 'setRemoved') {
+      const id = text(body.id, 40);
+      if (id === 'p0') reject('The founder cannot be removed.');
+      const patch = { removed: !!body.removed, removedAt: now() };
+      if (BASE_ID.test(id)) await merge(K.edits, id, patch);
+      else if (ID.test(id) && (await redis.hexists(K.people, id))) await merge(K.people, id, patch);
+      else reject('That person is no longer on the tree.');
+      return res.status(200).json({ ok: true });
+    }
+
+    if (action === 'setParent') {
+      const id = text(body.id, 40), parentId = text(body.parentId, 40);
+      if (id === 'p0') reject('The founder cannot be moved.');
+      if (!ID.test(id) || id === parentId) reject('Choose a different parent.');
+      if (!(await personExists(parentId))) reject('That parent is no longer on the tree.');
+      if (BASE_ID.test(id)) await merge(K.edits, id, { parentId, movedAt: now() });
+      else if (await redis.hexists(K.people, id)) await merge(K.people, id, { parentId, movedAt: now() });
+      else reject('That person is no longer on the tree.');
+      return res.status(200).json({ ok: true });
+    }
+
+    if (action === 'addPhoto') {
+      if (!photosOn()) reject('Photos are not switched on yet. Connect Vercel Blob storage to this project.');
+      const personId = text(body.personId, 40);
+      if (!(await personExists(personId))) reject('That person is no longer on the tree.');
+      const m = typeof body.dataUrl === 'string' && body.dataUrl.match(/^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$/);
+      if (!m) reject('That file is not a photo this site can use. Try a JPEG or PNG.');
+      const bytes = Buffer.from(m[2], 'base64');
+      if (!bytes.length || bytes.length > MAX_PHOTO_BYTES) reject('That photo is too large.');
+      const ext = m[1] === 'jpeg' ? 'jpg' : m[1];
+      const blob = await put(`photos/${personId}/${randomBytes(8).toString('hex')}.${ext}`, bytes, {
+        access: 'public', contentType: `image/${m[1]}`, addRandomSuffix: false,
+      });
+      const photoId = randomBytes(10).toString('hex');
+      await redis.hset(K.photos, { [photoId]: { personId, url: blob.url, caption: text(body.caption, 200), addedAt: now() } });
+      return res.status(200).json({ ok: true, id: photoId, url: blob.url });
+    }
+
+    if (action === 'deletePhoto') {
+      const photoId = text(body.photoId, 40);
+      const cur = ID.test(photoId) ? await redis.hget(K.photos, photoId) : null;
+      if (!cur) reject('That photo has already been deleted.');
+      if (photosOn() && cur.url) { try { await del(cur.url); } catch (e) { console.error(e); } }
+      await redis.hdel(K.photos, photoId);
       return res.status(200).json({ ok: true });
     }
 
