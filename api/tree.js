@@ -19,7 +19,14 @@ function blobToken() {
   }
   return null;
 }
-const photosOn = () => !!blobToken();
+// Newer Blob stores have no token: they set BLOB_STORE_ID and sign in with Vercel's per-request OIDC token.
+const photosOn = () => !!(blobToken() || process.env.BLOB_STORE_ID);
+function blobAuth(req) {
+  const token = blobToken();
+  if (token) return { token };
+  const oidcToken = req.headers['x-vercel-oidc-token'] || process.env.VERCEL_OIDC_TOKEN;
+  return oidcToken ? { oidcToken, storeId: process.env.BLOB_STORE_ID } : { storeId: process.env.BLOB_STORE_ID };
+}
 const MAX_PHOTO_BYTES = 3 * 1024 * 1024;
 const ID = /^[A-Za-z0-9_-]{1,40}$/;
 const BASE_ID = /^p\d{1,4}$/;
@@ -177,7 +184,7 @@ export default async function handler(req, res) {
       if (!bytes.length || bytes.length > MAX_PHOTO_BYTES) reject('That photo is too large.');
       const ext = m[1] === 'jpeg' ? 'jpg' : m[1];
       const blob = await put(`photos/${personId}/${randomBytes(8).toString('hex')}.${ext}`, bytes, {
-        access: 'public', contentType: `image/${m[1]}`, addRandomSuffix: false, token: blobToken(),
+        access: 'public', contentType: `image/${m[1]}`, addRandomSuffix: false, ...blobAuth(req),
       });
       const photoId = randomBytes(10).toString('hex');
       await redis.hset(K.photos, { [photoId]: { personId, url: blob.url, caption: text(body.caption, 200), addedAt: now() } });
@@ -188,7 +195,7 @@ export default async function handler(req, res) {
       const photoId = text(body.photoId, 40);
       const cur = ID.test(photoId) ? await redis.hget(K.photos, photoId) : null;
       if (!cur) reject('That photo has already been deleted.');
-      if (photosOn() && cur.url) { try { await del(cur.url, { token: blobToken() }); } catch (e) { console.error(e); } }
+      if (photosOn() && cur.url) { try { await del(cur.url, blobAuth(req)); } catch (e) { console.error(e); } }
       await redis.hdel(K.photos, photoId);
       return res.status(200).json({ ok: true });
     }
