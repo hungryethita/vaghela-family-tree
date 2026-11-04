@@ -52,6 +52,21 @@ async function ensureSeed() {
   await Promise.all(w);
 }
 
+// Version number: goes up by one for every new Vercel deployment (including redeploys).
+let versionCache = null;
+async function deployVersion() {
+  if (versionCache) return versionCache;
+  const id = process.env.VERCEL_DEPLOYMENT_ID || process.env.VERCEL_URL || process.env.VERCEL_GIT_COMMIT_SHA;
+  if (!id) return null;
+  const known = await redis.hget('vft:deploys', id);
+  if (known) return (versionCache = Number(known));
+  await redis.set('vft:version', 8, { nx: true }); // 8 deployments happened before versions were tracked
+  const n = await redis.incr('vft:version');
+  const claimed = await redis.hsetnx('vft:deploys', id, n);
+  versionCache = claimed ? n : Number(await redis.hget('vft:deploys', id));
+  return versionCache;
+}
+
 class Rejected extends Error {}
 const reject = m => { throw new Rejected(m); };
 
@@ -88,12 +103,13 @@ export default async function handler(req, res) {
   try {
     if (req.method === 'GET') {
       await ensureSeed();
-      const [people, edits, orders, photos] = await Promise.all([
+      const [people, edits, orders, photos, version] = await Promise.all([
         redis.hgetall(K.people), redis.hgetall(K.edits), redis.hgetall(K.orders), redis.hgetall(K.photos),
+        deployVersion().catch(() => null),
       ]);
       return res.status(200).json({
         people: people || {}, edits: edits || {}, orders: orders || {}, photos: photos || {},
-        editable: !!process.env.FAMILY_PASSWORD, photosEnabled: photosOn(),
+        editable: !!process.env.FAMILY_PASSWORD, photosEnabled: photosOn(), version,
       });
     }
     if (req.method !== 'POST') {

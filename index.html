@@ -168,6 +168,11 @@ svg.faces .node.sel .ring{stroke-width:5}
 .prow input{flex:1;min-width:0}
 .prow .btn{padding:7px 10px}
 #fAddPartner{align-self:flex-start;font-size:.82rem;padding:6px 10px}
+.credit{margin:0;color:var(--muted);font-size:.82rem;line-height:1.45;max-width:72ch}
+.credit a,.credit .me{color:var(--accent);text-decoration:underline;text-underline-offset:2px}
+.credit .me{all:unset;cursor:pointer;color:var(--accent);text-decoration:underline;text-underline-offset:2px}
+.credit .me:focus-visible,.credit a:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:2px}
+.credit .ver{white-space:nowrap;font-variant-numeric:tabular-nums}
 @media (prefers-reduced-motion: reduce){ *{transition:none!important;scroll-behavior:auto!important} }
 </style>
 </head>
@@ -175,7 +180,7 @@ svg.faces .node.sel .ring{stroke-width:5}
 <header>
   <div class="toprow">
     <h1>Vaghela Family Tree</h1>
-    <span class="sub">Transcribed from the hand-drawn chart dated 20-09-09</span>
+    <p class="credit">Compiled by <button type="button" class="me" id="meBtn">Bhavesh Vaghela</button>, son of Jayantilal and grandson of Hirji, of Ramjibhai’s line. Spotted a mistake or someone missing? Email <a href="mailto:bhaveshvaghela@gmail.com">bhaveshvaghela@gmail.com</a><span class="ver" id="ver"></span></p>
   </div>
   <div class="tools">
     <div class="search">
@@ -548,7 +553,7 @@ const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 let focusId = 'p0', selId=null, checkIdx=-1;
 const folded = new Set();
 const hits = new Set();
-let view='tree'; try{ if(localStorage.getItem('vft-view')==='photos') view='photos'; }catch(e){}
+let view='tree'; // every visit opens in Tree view
 rebuild();
 
 /* ---------- SVG ---------- */
@@ -912,10 +917,11 @@ $('fAddPartner').onclick=()=>{ const i=addPartnerRow(); if(i) i.focus(); };
 
 /* ---------- tree / photos view ---------- */
 function setView(v){
-  view=v; try{ localStorage.setItem('vft-view', v); }catch(e){}
+  view=v;
   $('vTree').setAttribute('aria-pressed', String(v==='tree')); $('vPhotos').setAttribute('aria-pressed', String(v==='photos'));
   render(); fitTo(layout);
 }
+$('meBtn').onclick=()=>{ if(byId.p58) goTo('p58'); };
 $('vTree').onclick=()=>setView('tree');
 $('vPhotos').onclick=()=>setView('photos');
 
@@ -974,6 +980,7 @@ function load(){
       const r=await fetch(API,{cache:'no-store'}); const j=await r.json();
       if(!r.ok) throw new Error(j.error||'load failed');
       added=Object.entries(j.people||{}).map(([id,v])=>({id,...v})).sort((a,b)=>String(a.addedAt||'').localeCompare(String(b.addedAt||'')));
+      if(j.version) $('ver').textContent=` · Version ${j.version}`;
       edits=j.edits||{}; orders=j.orders||{}; photos=j.photos||{}; photosEnabled=!!j.photosEnabled;
       $('unlock').hidden=!j.editable; if(!canWrite) note('');
       refresh();
