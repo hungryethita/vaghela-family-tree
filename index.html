@@ -149,6 +149,25 @@ label.btn{display:inline-flex;align-items:center}
 #binList{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
 #binList li{display:flex;justify-content:space-between;align-items:center;gap:10px}
 #binList small{display:block;color:var(--muted);font-size:.78rem}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface)}
+.seg button{font:inherit;font-size:.88rem;font-weight:500;padding:8px 14px;border:0;background:transparent;color:var(--ink);cursor:pointer}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--surface)}
+.seg button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.face{display:none}
+svg.faces .face{display:inline}
+svg.faces .dotc, svg.faces .av{display:none}
+.face .ring{fill:var(--surface);stroke:var(--g);stroke-width:3}
+.face .sil{fill:none;stroke:var(--muted);stroke-width:1.6;stroke-linecap:round}
+.face .badge{fill:var(--g);stroke:var(--surface);stroke-width:2}
+.face .sym{fill:var(--surface);font-size:11px;font-weight:700;font-family:system-ui,-apple-system,'Segoe UI',sans-serif}
+svg.faces .node.sel .ring{stroke-width:5}
+#pform .flabel{font-size:.8rem;color:var(--muted)}
+.partners{display:flex;flex-direction:column;gap:6px}
+.prow{display:flex;gap:6px;align-items:center}
+.prow input{flex:1;min-width:0}
+.prow .btn{padding:7px 10px}
+#fAddPartner{align-self:flex-start;font-size:.82rem;padding:6px 10px}
 @media (prefers-reduced-motion: reduce){ *{transition:none!important;scroll-behavior:auto!important} }
 </style>
 </head>
@@ -163,6 +182,10 @@ label.btn{display:inline-flex;align-items:center}
       <label for="q" hidden>Find a person</label>
       <input id="q" type="search" placeholder="Find a person…" autocomplete="off">
       <ul id="results" hidden></ul>
+    </div>
+    <div class="seg" role="group" aria-label="View">
+      <button type="button" id="vTree" aria-pressed="true">Tree</button>
+      <button type="button" id="vPhotos" aria-pressed="false">Photos</button>
     </div>
     <button class="btn check" id="nextCheck" type="button">Next to check</button>
     <button class="btn" id="unlock" type="button" aria-pressed="false">Unlock editing</button>
@@ -220,14 +243,16 @@ label.btn{display:inline-flex;align-items:center}
       <label class="btn" id="bPhoto" for="fPhoto" hidden>+ Add photos</label>
       <button class="btn danger" id="bDel" type="button" hidden>Remove from tree</button>
     </div>
+    <p class="fmsg" id="photoHint" hidden>Photos are switched off. In Vercel, connect a Blob store to this project, then redeploy.</p>
     <input type="file" id="fPhoto" accept="image/*" multiple hidden>
     <form id="pform" hidden novalidate>
       <p class="eyebrow" id="fTitle"></p>
       <label for="fName">Name</label>
       <input type="text" id="fName" autocomplete="off">
       <div class="gender" role="radiogroup" aria-label="Gender"><label for="fMale"><input type="radio" name="fGender" id="fMale" value="m" checked> Male</label><label for="fFemale"><input type="radio" name="fGender" id="fFemale" value="f"> Female</label></div>
-      <label for="fSpouse">Wife or husband (optional)</label>
-      <input type="text" id="fSpouse" autocomplete="off">
+      <span class="flabel" id="fPartnersLabel">Wives or husbands (optional)</span>
+      <div class="partners" id="fPartners" role="group" aria-labelledby="fPartnersLabel"></div>
+      <button class="btn" type="button" id="fAddPartner">+ Add another partner</button>
       <label for="fNote">Note (optional)</label>
       <input type="text" id="fNote" autocomplete="off" placeholder="e.g. lives in Leicester">
       <label class="cb" id="fResolveWrap" for="fResolve"><input type="checkbox" id="fResolve"> This is now correct, remove the yellow flag</label>
@@ -452,7 +477,7 @@ function parse(raw){
     if((m=t.match(/\?\{([^}]*)\}/))){node.check=m[1]; t=t.replace(m[0],'');}
     if((m=t.match(/\{([^}]*)\}/))){node.note=m[1]; t=t.replace(m[0],'');}
     if((m=t.match(/@(\S+)/))){node.slug=m[1]; t=t.replace(m[0],'');}
-    if((m=t.match(/\+(\S+)/))){node.spouse=m[1]; t=t.replace(m[0],'');}
+    if((m=t.match(/\+(\S+)/))){node.spouses=[m[1]]; t=t.replace(m[0],'');}
     if(/\*/.test(t)){node.none=true; t=t.replace('*','');}
     node.name=t.trim();
     while(stack[stack.length-1].ind>=ind) stack.pop();
@@ -471,7 +496,8 @@ function rebuild(){
   for(const [id,e] of Object.entries(edits)){
     const d = byId[id]; if(!d || !e) continue;
     if(typeof e.name==='string' && e.name.trim() && e.name.trim()!==d.name){ d.origName = d.name; d.name = e.name.trim(); }
-    if(typeof e.spouse==='string') d.spouse = e.spouse.trim() || undefined;
+    if(Array.isArray(e.spouses)) d.spouses = e.spouses.filter(x=>typeof x==='string' && x.trim()).map(x=>x.trim());
+    else if(typeof e.spouse==='string') d.spouses = e.spouse.trim() ? [e.spouse.trim()] : [];
     if(typeof e.note==='string') d.note = e.note.trim() || undefined;
     if(e.resolved) d.check = undefined;
     if(e.gender==='f' || e.gender==='m') d.gender = e.gender;
@@ -482,7 +508,7 @@ function rebuild(){
     progress = false;
     pending = pending.filter(a=>{
       const p = byId[a.parentId]; if(!p) return true;
-      const n = {id:a.id, name:a.name.trim(), spouse:(a.spouse||'').trim()||undefined, note:(a.note||'').trim()||undefined, children:[], pid:p.id, added:true, gender:a.gender==='f'?'f':'m', removedFlag:!!a.removed};
+      const n = {id:a.id, name:a.name.trim(), spouses:(Array.isArray(a.spouses)?a.spouses:[a.spouse]).filter(x=>typeof x==='string' && x.trim()).map(x=>x.trim()), note:(a.note||'').trim()||undefined, children:[], pid:p.id, added:true, gender:a.gender==='f'?'f':'m', removedFlag:!!a.removed};
       p.children.push(n); byId[n.id] = n; progress = true; return false;
     });
   }
@@ -522,12 +548,13 @@ const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 let focusId = 'p0', selId=null, checkIdx=-1;
 const folded = new Set();
 const hits = new Set();
+let view='tree'; try{ if(localStorage.getItem('vft-view')==='photos') view='photos'; }catch(e){}
 rebuild();
 
 /* ---------- SVG ---------- */
 const svg = d3.select('#tree');
 const g = svg.append('g');
-svg.append('defs').html('<clipPath id="avclip" clipPathUnits="objectBoundingBox"><circle cx=".5" cy=".5" r=".5"></circle></clipPath>');
+svg.append('defs').html('<clipPath id="avclip" clipPathUnits="objectBoundingBox"><circle cx=".5" cy=".5" r=".5"></circle></clipPath><clipPath id="faceclip"><circle r="20"></circle></clipPath>');
 const gl = g.append('g'), gn = g.append('g');
 const zoom = d3.zoom().scaleExtent([0.04,3]).on('zoom', e=>g.attr('transform', e.transform));
 svg.call(zoom).on('dblclick.zoom', null);
@@ -536,7 +563,9 @@ svg.on('click', e=>{ if(e.target===svg.node()) closeSheet(); });
 let layout = [];
 function render(){
   const h = d3.hierarchy(byId[focusId], d => folded.has(d.id) || !d.children.length ? null : d.children);
-  d3.tree().nodeSize([30,175]).separation((a,b)=>a.parent===b.parent?1:1.3)(h);
+  const faces = view==='photos';
+  svg.classed('faces', faces);
+  d3.tree().nodeSize(faces?[66,215]:[30,175]).separation((a,b)=>a.parent===b.parent?1:1.3)(h);
   layout = h.descendants();
 
   gl.selectAll('path').data(h.links(), l=>l.target.data.id).join('path')
@@ -547,6 +576,12 @@ function render(){
     ng.append('circle').attr('class','halo').attr('r',11);
     ng.append('circle').attr('class','dotc').attr('r',5.5);
     ng.append('image').attr('class','av').attr('x',-11).attr('y',-11).attr('width',22).attr('height',22).attr('preserveAspectRatio','xMidYMid slice').attr('clip-path','url(#avclip)');
+    const f = ng.append('g').attr('class','face');
+    f.append('circle').attr('class','ring').attr('r',22);
+    f.append('path').attr('class','sil').attr('clip-path','url(#faceclip)').attr('d','M-6.5,-6a6.5,6.5 0 1,0 13,0a6.5,6.5 0 1,0 -13,0M-13,19C-13,9 -7,4 0,4C7,4 13,9 13,19');
+    f.append('image').attr('class','fimg').attr('x',-20).attr('y',-20).attr('width',40).attr('height',40).attr('preserveAspectRatio','xMidYMid slice').attr('clip-path','url(#faceclip)');
+    f.append('circle').attr('class','badge').attr('cx',16).attr('cy',16).attr('r',8);
+    f.append('text').attr('class','sym').attr('x',16).attr('y',16).attr('dy','0.36em').attr('text-anchor','middle');
     ng.append('rect').attr('class','mark').attr('rx',3);
     const t = ng.append('text').attr('class','label').attr('x',11).attr('dy','0.34em');
     t.append('tspan').attr('class','nm');
@@ -560,8 +595,13 @@ function render(){
       folded.has(d.data.id)&&d.data.children.length&&'folded', d.data.added&&'added', d.data.gender==='f'&&'female', hits.has(d.data.id)&&'hit', selId===d.data.id&&'sel'].filter(Boolean).join(' '));
   nodes.select('.nm').text(d=>d.data.name);
   nodes.select('.av').attr('href', d=>d.data.photo||null).attr('display', d=>d.data.photo?null:'none');
-  nodes.select('text.label').attr('x', d=>d.data.photo?15:11);
-  nodes.select('.spouse').text(d=>d.data.spouse?`  & ${d.data.spouse}`:'');
+  nodes.select('text.label').attr('x', d=>faces?30:(d.data.photo?15:11));
+  nodes.select('.halo').attr('r', faces?27:11);
+  nodes.select('.count').attr('x', faces?-27:-10);
+  nodes.select('.fimg').attr('href', d=>d.data.photo||null).attr('display', d=>d.data.photo?null:'none');
+  nodes.select('.sil').attr('display', d=>d.data.photo?'none':null);
+  nodes.select('.sym').text(d=>d.data.gender==='f'?'♀':'♂');
+  nodes.select('.spouse').text(d=>(d.data.spouses||[]).length?`  & ${d.data.spouses.join(', ')}`:'');
   nodes.select('.count').text(d=>folded.has(d.data.id)&&d.data.children.length?`+${descCount(d.data)}`:'');
   nodes.each(function(d){
     const r = d3.select(this).select('rect');
@@ -575,7 +615,8 @@ function render(){
 function fitTo(list, ms=650){
   const W=svg.node().clientWidth, H=svg.node().clientHeight;
   const xs=list.map(n=>n.x), ys=list.map(n=>n.y);
-  const x0=Math.min(...xs)-24, x1=Math.max(...xs)+24, y0=Math.min(...ys)-30, y1=Math.max(...ys)+170;
+  const pad=view==='photos'?36:24;
+  const x0=Math.min(...xs)-pad, x1=Math.max(...xs)+pad, y0=Math.min(...ys)-30, y1=Math.max(...ys)+170;
   const k=Math.min(1.6, 0.94*Math.min(W/(y1-y0), H/(x1-x0)));
   const t=d3.zoomIdentity.translate(W/2-k*(y0+y1)/2, H/2-k*(x0+x1)/2).scale(k);
   svg.transition().duration(reduced?0:ms).call(zoom.transform,t);
@@ -624,7 +665,9 @@ function select(id){
   $('sheet').hidden=false;
   $('sGen').textContent=`Generation ${a.length} · ${d.gender==='f'?'Female':'Male'}`;
   $('sName').textContent=d.name;
-  $('sSpouse').hidden=!d.spouse; $('sSpouse').textContent=d.spouse?`Married to ${d.spouse}`:'';
+  const sp=d.spouses||[];
+  $('sSpouse').hidden=!sp.length;
+  $('sSpouse').textContent = sp.length>1 ? 'Married to '+sp.map((x,i)=>`${x} (${ordinal(i+1)})`).join(', ') : sp.length ? `Married to ${sp[0]}` : '';
   $('sCheck').hidden=!d.check; $('sCheck').textContent=d.check?`Please check: ${d.check}.`:'';
   const extra=[d.note, d.origName&&`Originally written as ${d.origName} on the chart.`, d.added&&'Added since the original chart.'].filter(Boolean).join(' ');
   $('sNote').hidden=!extra; $('sNote').textContent=extra;
@@ -642,6 +685,7 @@ function select(id){
   $('bAdd').hidden = $('bEdit').hidden = !canWrite;
   $('bDel').hidden = $('bMove').hidden = !(canWrite && d.pid);
   $('bPhoto').hidden = !(canWrite && photosEnabled);
+  $('photoHint').hidden = !(canWrite && !photosEnabled);
   renderPhotos(d);
   if(moveFor && moveFor!==id) hideMove();
   const par = d.pid ? byId[d.pid] : null, pos = par ? par.children.indexOf(d) : -1;
@@ -668,7 +712,7 @@ const q=$('q'), res=$('results');
 q.addEventListener('input',()=>{
   const v=q.value.trim().toLowerCase(); hits.clear(); res.innerHTML='';
   if(!v){ res.hidden=true; render(); return; }
-  const m=all.filter(d=>d.name.toLowerCase().includes(v) || (d.spouse||'').toLowerCase().includes(v));
+  const m=all.filter(d=>d.name.toLowerCase().includes(v) || (d.spouses||[]).join(' ').toLowerCase().includes(v));
   m.forEach(d=>hits.add(d.id));
   m.slice(0,40).forEach(d=>{
     const li=document.createElement('li'), b=document.createElement('button');
@@ -698,11 +742,11 @@ function openForm(mode){
   formMode=mode; formFor=selId; form.hidden=false; msg('');
   if(mode==='add'){
     $('fTitle').textContent=`New child of ${d.name}`;
-    $('fName').value=''; $('fSpouse').value=''; $('fNote').value='';
+    $('fName').value=''; setPartners([]); $('fNote').value='';
     $('fResolveWrap').hidden=true; $('fSave').textContent='Add person'; $('fMale').checked=true;
   } else {
     $('fTitle').textContent=`Edit ${d.name}`;
-    $('fName').value=d.name; $(d.gender==='f'?'fFemale':'fMale').checked=true; $('fSpouse').value=d.spouse||''; $('fNote').value=d.note||'';
+    $('fName').value=d.name; $(d.gender==='f'?'fFemale':'fMale').checked=true; setPartners(d.spouses||[]); $('fNote').value=d.note||'';
     $('fResolveWrap').hidden=!d.check; $('fResolve').checked=false; $('fSave').textContent='Save changes';
   }
   $('fName').focus();
@@ -848,27 +892,54 @@ $('fPhoto').addEventListener('change', async()=>{
   note(failed ? `${done} added, ${failed} could not be uploaded.${reason || ' Try a JPEG or PNG photo.'}` : `${done} photo${done===1?'':'s'} added to ${d.name}.`);
 });
 
+const ordinal=n=>n===1?'1st':n===2?'2nd':n===3?'3rd':n+'th';
+function addPartnerRow(v=''){
+  const box=$('fPartners'), n=box.children.length; if(n>=6) return null;
+  const row=document.createElement('div'); row.className='prow';
+  const inp=document.createElement('input'); inp.type='text'; inp.id='fSpouse'+n; inp.autocomplete='off'; inp.value=v;
+  const x=document.createElement('button'); x.type='button'; x.className='btn'; x.textContent='✕'; x.setAttribute('aria-label','Remove this partner');
+  x.onclick=()=>{ row.remove(); if(!box.children.length) addPartnerRow(); relabelPartners(); };
+  row.append(inp,x); box.append(row); relabelPartners(); return inp;
+}
+function relabelPartners(){
+  const rows=[...$('fPartners').children];
+  rows.forEach((r,i)=>{ const inp=r.querySelector('input'); inp.placeholder = rows.length>1 ? `${ordinal(i+1)} wife or husband` : 'Name'; inp.setAttribute('aria-label', `${ordinal(i+1)} wife or husband`); });
+  $('fAddPartner').hidden = rows.length>=6;
+}
+function setPartners(list){ $('fPartners').innerHTML=''; (list.length?list:['']).forEach(v=>addPartnerRow(v)); }
+function getPartners(){ return [...$('fPartners').querySelectorAll('input')].map(i=>i.value.trim()).filter(Boolean); }
+$('fAddPartner').onclick=()=>{ const i=addPartnerRow(); if(i) i.focus(); };
+
+/* ---------- tree / photos view ---------- */
+function setView(v){
+  view=v; try{ localStorage.setItem('vft-view', v); }catch(e){}
+  $('vTree').setAttribute('aria-pressed', String(v==='tree')); $('vPhotos').setAttribute('aria-pressed', String(v==='photos'));
+  render(); fitTo(layout);
+}
+$('vTree').onclick=()=>setView('tree');
+$('vPhotos').onclick=()=>setView('photos');
+
 $('bAdd').onclick=()=>openForm('add');
 $('bEdit').onclick=()=>openForm('edit');
 $('fCancel').onclick=hideForm;
 form.addEventListener('submit', async e=>{
   e.preventDefault();
   const d=byId[formFor]; if(!d || !db) return;
-  const gender=$('fFemale').checked?'f':'m', name=$('fName').value.trim(), spouse=$('fSpouse').value.trim(), nt=$('fNote').value.trim();
+  const gender=$('fFemale').checked?'f':'m', name=$('fName').value.trim(), spouses=getPartners(), nt=$('fNote').value.trim();
   if(!name){ msg('Enter a name first.', true); $('fName').focus(); return; }
   $('fSave').disabled=true;
   try{
     if(formMode==='add'){
       folded.delete(d.id);
-      await db.collection('people').add({name, spouse, note:nt, gender, parentId:d.id, addedAt:new Date().toISOString()});
-      $('fName').value=''; $('fSpouse').value=''; $('fNote').value='';
+      await db.collection('people').add({name, spouses, spouse:spouses.join(', '), note:nt, gender, parentId:d.id, addedAt:new Date().toISOString()});
+      $('fName').value=''; setPartners([]); $('fNote').value='';
       msg(`Added ${name} under ${d.name}. Add another, or close the form.`); $('fName').focus();
     } else if(d.added){
-      await db.doc('people/'+d.id).update({name, spouse, note:nt, gender});
+      await db.doc('people/'+d.id).update({name, spouses, spouse:spouses.join(', '), note:nt, gender});
       hideForm();
     } else {
       const prev=edits[d.id]||{};
-      await db.doc('edits/'+d.id).set({name, spouse, note:nt, gender, resolved: !!prev.resolved || $('fResolve').checked, editedAt:new Date().toISOString()});
+      await db.doc('edits/'+d.id).set({name, spouses, spouse:spouses.join(', '), note:nt, gender, resolved: !!prev.resolved || $('fResolve').checked, editedAt:new Date().toISOString()});
       hideForm();
     }
   }catch(err){ saveFailed(err); }
@@ -957,6 +1028,7 @@ $('zfit').onclick=()=>fitTo(layout);
 function start(){
   const slug=location.hash.slice(1), leg=legs.find(d=>d.slug===slug);
   focusId = leg ? leg.id : DATA.id;
+  $('vTree').setAttribute('aria-pressed', String(view==='tree')); $('vPhotos').setAttribute('aria-pressed', String(view==='photos'));
   render(); fitTo(layout,0);
 }
 (document.fonts ? document.fonts.ready : Promise.resolve()).then(start);

@@ -2,8 +2,8 @@
 
 An interactive family tree descending from Sabhabhai, transcribed from the hand-drawn chart dated 20-09-09.
 Anyone with the link can view, zoom and search it. Family members who know the shared password can add people,
-correct names, set gender, reorder brothers and sisters, move a person (and everyone below them) to a different parent,
-remove people (they can be restored from "Removed"), attach photos, and clear the yellow "please check" flags.
+correct names, record more than one wife or husband, set gender, reorder brothers and sisters, move a person (and everyone below them) to a different parent,
+remove people (they can be restored from "Removed"), attach photos (and switch to a Photos view of faces), and clear the yellow "please check" flags.
 
 ## Deploy on Vercel
 
@@ -13,7 +13,8 @@ remove people (they can be restored from "Removed"), attach photos, and clear th
 3. **Set the family password**: **Settings → Environment Variables → `FAMILY_PASSWORD`** = a password you'll share
    with family members who should be able to edit.
 4. **Turn on photos**: in **Storage**, create a **Blob** store and connect it to the project. This adds
-   `BLOB_READ_WRITE_TOKEN` automatically. Until it's connected, the "+ Add photos" button stays hidden.
+   `BLOB_READ_WRITE_TOKEN` automatically (a custom prefix also works). Choose **Public** access. Until it's connected,
+   the "+ Add photos" button stays hidden and editors see a note saying photos are switched off.
 5. **Redeploy** (Deployments → ⋯ → Redeploy) so the new settings take effect.
 
 The first time the site loads, the additions already made on the claude.ai version (`data/seed.js`) are copied into the database.

@@ -10,7 +10,16 @@ const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TO
 const redis = url && token ? new Redis({ url, token }) : null;
 
 const K = { people: 'vft:people', edits: 'vft:edits', orders: 'vft:orders', photos: 'vft:photos', seeded: 'vft:seeded' };
-const photosOn = () => !!process.env.BLOB_READ_WRITE_TOKEN;
+// Vercel names the token BLOB_READ_WRITE_TOKEN unless a custom prefix was chosen when connecting the store,
+// so also accept any *_READ_WRITE_TOKEN that holds a Blob token.
+function blobToken() {
+  if (process.env.BLOB_READ_WRITE_TOKEN) return process.env.BLOB_READ_WRITE_TOKEN;
+  for (const [k, v] of Object.entries(process.env)) {
+    if (/READ_WRITE_TOKEN$/.test(k) && typeof v === 'string' && v.startsWith('vercel_blob_rw_')) return v;
+  }
+  return null;
+}
+const photosOn = () => !!blobToken();
 const MAX_PHOTO_BYTES = 3 * 1024 * 1024;
 const ID = /^[A-Za-z0-9_-]{1,40}$/;
 const BASE_ID = /^p\d{1,4}$/;
@@ -42,7 +51,9 @@ const reject = m => { throw new Rejected(m); };
 function personFields(d = {}) {
   const name = text(d.name, 80);
   if (!name) reject('Enter a name.');
-  return { name, gender: gender(d.gender), spouse: text(d.spouse, 80), note: text(d.note, 300) };
+  const spouses = (Array.isArray(d.spouses) ? d.spouses : [d.spouse])
+    .map(x => text(x, 80)).filter(Boolean).slice(0, 6);
+  return { name, gender: gender(d.gender), spouses, spouse: spouses.join(', '), note: text(d.note, 300) };
 }
 
 async function merge(key, id, patch) {
@@ -166,7 +177,7 @@ export default async function handler(req, res) {
       if (!bytes.length || bytes.length > MAX_PHOTO_BYTES) reject('That photo is too large.');
       const ext = m[1] === 'jpeg' ? 'jpg' : m[1];
       const blob = await put(`photos/${personId}/${randomBytes(8).toString('hex')}.${ext}`, bytes, {
-        access: 'public', contentType: `image/${m[1]}`, addRandomSuffix: false,
+        access: 'public', contentType: `image/${m[1]}`, addRandomSuffix: false, token: blobToken(),
       });
       const photoId = randomBytes(10).toString('hex');
       await redis.hset(K.photos, { [photoId]: { personId, url: blob.url, caption: text(body.caption, 200), addedAt: now() } });
@@ -177,7 +188,7 @@ export default async function handler(req, res) {
       const photoId = text(body.photoId, 40);
       const cur = ID.test(photoId) ? await redis.hget(K.photos, photoId) : null;
       if (!cur) reject('That photo has already been deleted.');
-      if (photosOn() && cur.url) { try { await del(cur.url); } catch (e) { console.error(e); } }
+      if (photosOn() && cur.url) { try { await del(cur.url, { token: blobToken() }); } catch (e) { console.error(e); } }
       await redis.hdel(K.photos, photoId);
       return res.status(200).json({ ok: true });
     }
