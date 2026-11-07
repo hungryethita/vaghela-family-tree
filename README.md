@@ -3,7 +3,7 @@
 An interactive family tree descending from Sabhabhai, transcribed from the hand-drawn chart dated 20-09-09.
 Anyone with the link can view, zoom and search it. Family members who know the shared password can add people,
 correct names, record more than one wife or husband, set gender, reorder brothers and sisters, move a person (and everyone below them) to a different parent,
-remove people (they can be restored from "Removed"), attach photos (and switch to a Photos view of faces), and clear the yellow "please check" flags.
+remove people (they can be restored from "Removed"), attach photos (and switch to a Photos view of faces), download the tree or any branch as a PDF, and clear the yellow "please check" flags.
 
 ## Deploy on Vercel
 

@@ -192,6 +192,7 @@ svg.faces .node.sel .ring{stroke-width:5}
       <button type="button" id="vTree" aria-pressed="true">Tree</button>
       <button type="button" id="vPhotos" aria-pressed="false">Photos</button>
     </div>
+    <button class="btn" id="pdfBtn" type="button">Download PDF</button>
     <button class="btn check" id="nextCheck" type="button">Next to check</button>
     <button class="btn" id="unlock" type="button" aria-pressed="false">Unlock editing</button>
     <button class="btn" id="binBtn" type="button" hidden>Removed (0)</button>
@@ -921,6 +922,99 @@ function setView(v){
   $('vTree').setAttribute('aria-pressed', String(v==='tree')); $('vPhotos').setAttribute('aria-pressed', String(v==='photos'));
   render(); fitTo(layout);
 }
+/* ---------- PDF export: the branch on screen, fully unfolded, in the current view ---------- */
+function loadScript(src){ return new Promise((ok,fail)=>{ const el=document.createElement('script'); el.src=src; el.onload=ok; el.onerror=()=>fail(new Error('load '+src)); document.head.append(el); }); }
+async function pdfLibs(){
+  if(!window.jspdf) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+  if(!window.svg2pdf) await loadScript('https://cdn.jsdelivr.net/npm/svg2pdf.js@2.2.3/dist/svg2pdf.umd.min.js');
+}
+async function thumb(url, size){
+  try{
+    const blob=await fetch(url,{mode:'cors'}).then(r=>{ if(!r.ok) throw 0; return r.blob(); });
+    const bmp=await createImageBitmap(blob); const c=document.createElement('canvas'); c.width=c.height=size;
+    const k=Math.max(size/bmp.width, size/bmp.height), w=bmp.width*k, h=bmp.height*k;
+    const ctx=c.getContext('2d'); ctx.fillStyle='#fff'; ctx.fillRect(0,0,size,size); ctx.drawImage(bmp,(size-w)/2,(size-h)/2,w,h);
+    return c.toDataURL('image/jpeg',0.85);
+  }catch(e){ return null; }
+}
+const esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+async function exportPdf(){
+  const btn=$('pdfBtn'), label=btn.textContent; btn.disabled=true; btn.textContent='Preparing PDF…';
+  try{
+    await pdfLibs();
+    const faces=view==='photos', top=byId[focusId];
+    const C={ink:'#1a2240', muted:'#5b6585', line:'#a3acc8', m:'#28398a', f:'#b8307f', paper:'#ffffff', soft:'#eef1f8'};
+    const h=d3.hierarchy(top, d=>d.children.length?d.children:null);
+    d3.tree().nodeSize(faces?[66,215]:[30,175]).separation((a,b)=>a.parent===b.parent?1:1.3)(h);
+    const list=h.descendants();
+    const mc=document.createElement('canvas').getContext('2d');
+    const width=(t,f)=>{ mc.font=f; return mc.measureText(t).width; };
+    const lx=faces?30:(n=>n.data.photo?15:10);
+    const labelX=n=>typeof lx==='function'?lx(n):lx;
+    const ext=n=>labelX(n)+width(n.data.name,'bold 13px Helvetica, Arial')+((n.data.spouses||[]).length?width('  & '+n.data.spouses.join(', '),'11px Helvetica, Arial'):0);
+    const pad=40, head=118, r=faces?27:12;
+    const minY=Math.min(...list.map(n=>n.y))-r, maxY=Math.max(...list.map(n=>n.y+ext(n)));
+    const minX=Math.min(...list.map(n=>n.x))-r, maxX=Math.max(...list.map(n=>n.x))+r;
+    const W=Math.max(maxY-minY+pad*2, 560), H=maxX-minX+head+pad;
+    const ox=pad-minY, oy=head-minX;
+    // photos: small square thumbnails, fetched once
+    const pics={}; btn.textContent='Gathering photos…';
+    await Promise.all(list.filter(n=>n.data.photo).map(async n=>{ pics[n.data.id]=await thumb(n.data.photo, faces?120:60); }));
+    const col=n=>n.data.gender==='f'?C.f:C.m;
+    const sym=(n)=> n.data.gender==='f'
+      ? `<circle cx="0" cy="-1.4" r="2.6" fill="none" stroke="#fff" stroke-width="1.2"/><path d="M0,1.2V4.6M-1.7,3H1.7" fill="none" stroke="#fff" stroke-width="1.2"/>`
+      : `<circle cx="-1.2" cy="1.2" r="2.6" fill="none" stroke="#fff" stroke-width="1.2"/><path d="M0.7,-0.7L3.4,-3.4M1.3,-3.4H3.4V-1.3" fill="none" stroke="#fff" stroke-width="1.2"/>`;
+    const link=d3.linkHorizontal().x(d=>d.y).y(d=>d.x);
+    let g='';
+    h.links().forEach(l=>{ g+=`<path d="${link(l)}" fill="none" stroke="${C.line}" stroke-width="1.2"/>`; });
+    list.forEach((n,i)=>{
+      const d=n.data, pic=pics[d.id], sp=(d.spouses||[]).length?`  & ${d.spouses.join(', ')}`:'';
+      let mark='';
+      if(faces){
+        mark=`<circle r="22" fill="${C.paper}" stroke="${col(n)}" stroke-width="3"/>`
+          + (pic ? `<image x="-20" y="-20" width="40" height="40" href="${pic}" clip-path="url(#fc)"/>`
+                 : `<g clip-path="url(#fc)"><path d="M-6.5,-6a6.5,6.5 0 1,0 13,0a6.5,6.5 0 1,0 -13,0M-13,19C-13,9 -7,4 0,4C7,4 13,9 13,19" fill="none" stroke="${C.muted}" stroke-width="1.6"/></g>`)
+          + `<circle cx="16" cy="16" r="8" fill="${col(n)}" stroke="${C.paper}" stroke-width="2"/><g transform="translate(16,16)">${sym(n)}</g>`;
+      } else {
+        mark = pic ? `<circle r="12" fill="${col(n)}"/><image x="-11" y="-11" width="22" height="22" href="${pic}" clip-path="url(#tc)"/>`
+                   : `<circle r="5" fill="${col(n)}"/>`;
+      }
+      g+=`<g transform="translate(${n.y},${n.x})">${mark}<text x="${labelX(n)}" y="4.5" font-family="helvetica" font-size="${i===0?17:13}" font-weight="bold" fill="${C.ink}">${esc(d.name)}<tspan font-weight="normal" font-size="11" fill="${C.muted}">${esc(sp)}</tspan></text></g>`;
+    });
+    const branch = top.id===DATA.id ? 'Whole tree' : `${top.name} branch`;
+    const when=new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
+    const ver=$('ver').textContent.replace(/^ · /,'');
+    const svgText=`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+      <defs><clipPath id="fc"><circle r="20"/></clipPath><clipPath id="tc"><circle r="11"/></clipPath></defs>
+      <rect width="${W}" height="${H}" fill="${C.paper}"/>
+      <text x="${pad}" y="52" font-family="times" font-size="30" fill="${C.ink}">Vaghela Family Tree</text>
+      <text x="${pad}" y="76" font-family="helvetica" font-size="12" fill="${C.muted}">${esc(branch)} · ${list.length} people · ${esc(when)}${ver?' · '+esc(ver):''}</text>
+      <text x="${pad}" y="94" font-family="helvetica" font-size="10.5" fill="${C.muted}">Compiled by Bhavesh Vaghela. Spotted a mistake or someone missing? Email bhaveshvaghela@gmail.com</text>
+      <g transform="translate(${W-pad-130},62)" font-family="helvetica" font-size="11" fill="${C.muted}">
+        <circle cx="5" cy="-4" r="5" fill="${C.m}"/><text x="15">Male</text>
+        <circle cx="70" cy="-4" r="5" fill="${C.f}"/><text x="80">Female</text>
+      </g>
+      <g transform="translate(${ox},${oy})">${g}</g>
+    </svg>`;
+    btn.textContent='Building PDF…';
+    const el=new DOMParser().parseFromString(svgText,'image/svg+xml').documentElement;
+    const holder=document.createElement('div'); holder.style.cssText='position:fixed;left:-99999px;top:0;width:1px;height:1px;overflow:hidden'; holder.append(el); document.body.append(holder);
+    const MAX=14000, k=Math.min(1, MAX/Math.max(W,H));
+    const { jsPDF } = window.jspdf;
+    const doc=new jsPDF({orientation: W>H?'landscape':'portrait', unit:'pt', format:[W*k, H*k], compress:true});
+    await doc.svg(el,{x:0,y:0,width:W*k,height:H*k});
+    holder.remove();
+    doc.setProperties({title:`Vaghela Family Tree – ${branch}`, author:'Bhavesh Vaghela'});
+    const file=`Vaghela-Family-Tree${top.id===DATA.id?'':'-'+top.name.replace(/[^A-Za-z0-9]+/g,'-')}${faces?'-photos':''}.pdf`;
+    doc.save(file);
+    btn.textContent='PDF downloaded';
+    setTimeout(()=>{ btn.textContent=label; }, 2500);
+  }catch(e){
+    console.error(e); btn.textContent='PDF failed, try again'; setTimeout(()=>{ btn.textContent=label; }, 3500);
+  }finally{ btn.disabled=false; }
+}
+$('pdfBtn').onclick=exportPdf;
+
 $('meBtn').onclick=()=>{ if(byId.p58) goTo('p58'); };
 $('vTree').onclick=()=>setView('tree');
 $('vPhotos').onclick=()=>setView('photos');
